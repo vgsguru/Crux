@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Crux Cloud Storage rules.
+// All app uploads follow the path shape  <folder>/<uid>/<file>  — resumes, intro/
+// interview videos, company logos & banners, job media/videos, and AI poster previews.
+// A signed-in user may read anything (media is shown across the app) and write only
+// under their own uid folder. Writes are server-side (Admin SDK) bypass these rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+
+    // <folder>/<uid>/<...> — the second path segment must be the caller's uid.
+    match /{folder}/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 200 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType.matches('video/.*') ||
+          request.resource.contentType == 'application/pdf'
+        );
+    }
+
+    // Everything else: read for signed-in users, writes server-side only.
+    match /{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

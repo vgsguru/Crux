@@ -1,0 +1,48 @@
+# Firebase App Hosting config for Crux (TanStack Start / Nitro node server).
+# App Hosting runs:  npm ci  →  npm run build  →  npm run start  (node .output/server/index.mjs)
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+
+env:
+  # ── Public Firebase web config (safe to embed; Vite inlines at build) ──
+  - variable: VITE_FIREBASE_API_KEY
+    value: "AIzaSyCU6HtvIhkN4omXqNgUa9kusGeMwmn0tdQ"
+    availability: [BUILD, RUNTIME]
+  - variable: VITE_FIREBASE_AUTH_DOMAIN
+    value: "crux-c4980.firebaseapp.com"
+    availability: [BUILD, RUNTIME]
+  - variable: VITE_FIREBASE_PROJECT_ID
+    value: "crux-c4980"
+    availability: [BUILD, RUNTIME]
+  - variable: VITE_FIREBASE_STORAGE_BUCKET
+    value: "crux-c4980.firebasestorage.app"
+    availability: [BUILD, RUNTIME]
+  - variable: VITE_FIREBASE_MESSAGING_SENDER_ID
+    value: "231349583122"
+    availability: [BUILD, RUNTIME]
+  - variable: VITE_FIREBASE_APP_ID
+    value: "1:231349583122:web:3c77dd0fb6cf98f4f547cb"
+    availability: [BUILD, RUNTIME]
+
+  # ── Server secrets (stored in Cloud Secret Manager, never committed) ──
+  # Create each once with:  firebase apphosting:secrets:set NAME
+  - variable: FIREBASE_SERVICE_ACCOUNT
+    secret: FIREBASE_SERVICE_ACCOUNT
+  - variable: GROQ_API_KEY
+    secret: GROQ_API_KEY
+  - variable: NVIDIA_API_KEY
+    secret: NVIDIA_API_KEY
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY
+
+  # ── Optional: self-hosted Chatterbox TTS (only if you run one) ──
+  # - variable: CHATTERBOX_API_URL
+  #   value: "https://your-chatterbox-host"
+  # - variable: CHATTERBOX_API_KEY
+  #   secret: CHATTERBOX_API_KEY
