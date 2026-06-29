@@ -30,6 +30,10 @@ firebase/*-adminsdk-*.json
 .wrangler/
 .dev.vars
 
+# Large test datasets (exceed GitHub 100MB limit)
+test_dataset/
+.firebase/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
