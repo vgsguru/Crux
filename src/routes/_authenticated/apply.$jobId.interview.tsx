@@ -2,12 +2,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { db, storage } from "@/integrations/firebase/client";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
 import { startAsyncInterview, saveAsyncAnswer, finalizeAsyncInterview, transcribeAnswer } from "@/lib/async-interview.server";
 import { saveIntroVideo } from "@/lib/applications.server";
+import { LiveInterview } from "@/components/live-interview";
 import { ArrowLeft, Circle, Square, Check, CheckCircle2, Video } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,6 +39,7 @@ function AsyncInterview() {
   const [introRec, setIntroRec] = useState(false);
   const [introElapsed, setIntroElapsed] = useState(0);
   const [introBusy, setIntroBusy] = useState(false);
+  const [mode, setMode] = useState<string>("async");
   const introTimerRef = useRef<number | null>(null);
   const saveIntroFn = useServerFn(saveIntroVideo);
 
@@ -55,6 +57,11 @@ function AsyncInterview() {
       const appDoc = appsSnap.docs[0];
       setAppId(appDoc.id);
       setIntroUrl((appDoc.data() as any).intro_video_url ?? null);
+      // Determine interview mode; only the async recorder needs its own start call.
+      const jobSnap = await getDoc(doc(db, "jobs", jobId));
+      const m = (jobSnap.exists() ? (jobSnap.data().interview_mode as string) : "async") || "async";
+      setMode(m);
+      if (m !== "async") return; // live interview is handled by <LiveInterview/>
       try {
         const res = await startFn({ data: { applicationId: appDoc.id } }) as { interviewId: string; questions: string[] };
         setInterviewId(res.interviewId);
@@ -193,8 +200,8 @@ function AsyncInterview() {
       <SiteNav />
       <main className="mx-auto max-w-3xl px-4 py-10">
         <Link to="/me/applications" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</Link>
-        <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">Async video interview</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Record one short answer per question. You can re-record before saving.</p>
+        <h1 className="mt-3 font-display text-3xl font-bold tracking-tight">{mode === "live" ? "Live AI interview" : "Async video interview"}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{mode === "live" ? "A real-time voice conversation with the AI interviewer — it asks follow-ups based on your answers." : "Record one short answer per question. You can re-record before saving."}</p>
 
         {/* Step 1 — compulsory intro video */}
         {!introUrl && (
@@ -216,9 +223,16 @@ function AsyncInterview() {
           </div>
         )}
 
-        {introUrl && questions.length === 0 && <div className="glass mt-6 rounded-3xl p-10 text-center text-sm text-muted-foreground">Loading questions…</div>}
+        {/* Live AI interview (voice + cross-questioning) */}
+        {introUrl && mode === "live" && appId && (
+          <div className="mt-6">
+            <LiveInterview applicationId={appId} jobId={jobId} onComplete={(id) => navigate({ to: "/me/applications/$applicationId", params: { applicationId: id } })} />
+          </div>
+        )}
 
-        {introUrl && questions.length > 0 && (
+        {introUrl && mode === "async" && questions.length === 0 && <div className="glass mt-6 rounded-3xl p-10 text-center text-sm text-muted-foreground">Loading questions…</div>}
+
+        {introUrl && mode === "async" && questions.length > 0 && (
           <>
             <div className="mt-6 flex flex-wrap gap-1.5">
               {questions.map((_, i) => (

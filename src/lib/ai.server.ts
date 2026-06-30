@@ -77,21 +77,59 @@ export const startInterview = createServerFn({ method: "POST" })
     const parsed = extractJson<{ questions: string[] }>(ai.choices[0].message.content);
     const allQs = [...recruiterQs, ...parsed.questions].slice(0, 8);
 
+    const focus: string = job?.interview_focus ?? "";
     const interviewsSnap = await db.collection("interviews").where("application_id", "==", data.applicationId).limit(1).get();
     let interviewId: string;
     if (!interviewsSnap.empty) {
       interviewId = interviewsSnap.docs[0].id;
-      await db.collection("interviews").doc(interviewId).update({ started_at: new Date().toISOString() });
+      await db.collection("interviews").doc(interviewId).update({ started_at: new Date().toISOString(), questions: allQs, focus });
     } else {
       const ref = await db.collection("interviews").add({
         application_id: data.applicationId,
         started_at: new Date().toISOString(),
+        questions: allQs,
+        focus,
       });
       interviewId = ref.id;
     }
 
     await db.collection("applications").doc(data.applicationId).update({ status: "interview_in_progress" });
-    return { interviewId, questions: allQs };
+    return { interviewId, questions: allQs, focus };
+  });
+
+// The cross-questioning brain. After each answer, decide whether ONE sharp
+// follow-up would meaningfully probe deeper. Returns null to move on. Bias-blind.
+export const interviewFollowup = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((input: unknown) => z.object({
+    jobId: z.string(),
+    focus: z.string().optional(),
+    question: z.string(),
+    answer: z.string(),
+    allowFollowup: z.boolean(),
+  }).parse(input))
+  .handler(async ({ data }) => {
+    // If the answer is empty/too short, or follow-ups are capped, just advance.
+    if (!data.allowFollowup || data.answer.trim().length < 15) return { followup: null };
+    const db = await getAdminDb();
+    const jobSnap = await db.collection("jobs").doc(data.jobId).get();
+    const job = jobSnap.exists ? (jobSnap.data() as any) : { title: "", description: "" };
+    const focus = (data.focus || job.interview_focus || "").trim();
+    try {
+      const ai = await groqChat(GROQ_CHAT_MODEL, {
+        temperature: 0.4,
+        messages: [
+          { role: "system", content: `You are a sharp but fair technical interviewer.${focus ? ` The interview's focus is: ${focus}.` : ""} Given the question and the candidate's answer, decide if ONE short follow-up would meaningfully probe deeper. Cross-question the weakest or most interesting claim; if the answer is vague, ask for a concrete specific example; if it makes a strong concrete claim, push for depth; if it is already complete and solid, do NOT follow up. Never reference name, gender, or age. Output STRICT JSON: {"followup": string | null}. Any follow-up must be a single sentence.` },
+          { role: "user", content: `Role: ${job.title}\n${(job.description ?? "").slice(0, 1200)}\n\nQuestion: ${data.question}\nCandidate's answer: ${data.answer.slice(0, 2000)}` },
+        ],
+        response_format: { type: "json_object" },
+      });
+      const parsed = extractJson<{ followup: string | null }>(ai.choices[0]?.message?.content ?? "{}");
+      const f = (parsed.followup ?? "").toString().trim();
+      return { followup: f && f.toLowerCase() !== "null" ? f : null };
+    } catch {
+      return { followup: null };
+    }
   });
 
 export const finishInterview = createServerFn({ method: "POST" })
@@ -188,6 +226,22 @@ export const finishInterview = createServerFn({ method: "POST" })
     } catch (e) {
       console.error("notify error", e);
     }
+
+    // Immutable audit trail (fairness/defensibility), same as the async path.
+    await db.collection("score_audits").add({
+      application_id: interview.application_id,
+      job_id: app.job_id,
+      applicant_id: app.applicant_id,
+      kind: "live_interview",
+      model: GROQ_CHAT_MODEL,
+      rubric: job.rubric ?? null,
+      scores: parsed.scores,
+      total: parsed.total,
+      recommendation: parsed.recommendation ?? "",
+      pii_redacted: true,
+      question_count: data.transcript.length,
+      created_at: new Date().toISOString(),
+    });
 
     return { score: parsed.total, summary: parsed.summary, breakdown: parsed.scores, highlights: { strengths: parsed.strengths, concerns: parsed.concerns, recommendation: parsed.recommendation } };
   });

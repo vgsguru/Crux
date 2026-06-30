@@ -13,5 +13,9 @@
       "**/.*",
       "**/node_modules/**"
     ]
+  },
+  "apphosting": {
+    "source": ".",
+    "backend": "crux-main"
   }
 }

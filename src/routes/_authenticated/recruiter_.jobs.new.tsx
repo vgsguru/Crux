@@ -45,6 +45,7 @@ function NewJob() {
   const [location, setLocation] = useState("");
   const [employmentType, setEmploymentType] = useState("full_time");
   const [interviewMode, setInterviewMode] = useState("async");
+  const [interviewFocus, setInterviewFocus] = useState("");
   const [salary, setSalary] = useState("");
   const [questions, setQuestions] = useState<string[]>(["Tell us about a project you're proud of."]);
   const [questionStyle, setQuestionStyle] = useState("balanced");
@@ -141,6 +142,7 @@ function NewJob() {
         location,
         employment_type: employmentType as "full_time",
         interview_mode: interviewMode,
+        interview_focus: interviewFocus || null,
         salary_range: salary,
         questions: questions.filter((q) => q.trim()),
         rubric,
@@ -209,6 +211,9 @@ function NewJob() {
                 </select>
               </Field>
             </div>
+            {interviewMode === "live" && (
+              <Field label="Live interview focus (optional)"><input value={interviewFocus} onChange={(e) => setInterviewFocus(e.target.value)} className="input" placeholder="e.g. system-design depth, communication, real ownership" /></Field>
+            )}
             <Field label="Ideal candidate profile (optional)"><textarea value={ideal} onChange={(e) => setIdeal(e.target.value)} rows={3} className="input resize-none" placeholder="Skills, experience, qualities your perfect hire has." /></Field>
             <div>
               <div className="flex items-center justify-between mb-1.5">
