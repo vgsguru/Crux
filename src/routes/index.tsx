@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteNav } from "@/components/site-nav";
+import { Reveal } from "@/components/reveal";
+import { motion } from "motion/react";
 import { useAuth } from "@/hooks/use-auth";
 import { recommendJobsForMe } from "@/lib/match.server";
 import { ArrowRight, Briefcase, Camera, Sparkles, BarChart3, Wand2, ChevronDown, Mic, FileText, ShieldCheck, Users, UserCheck, MessageSquareText, Zap, ScanSearch, Check } from "lucide-react";
@@ -66,10 +68,15 @@ function Index() {
 
       {/* Rest of the page content */}
       <div className="relative z-20 bg-ambient pt-16">
+        {/* Animated aurora backdrop */}
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <motion.div aria-hidden className="absolute -left-40 top-[12%] h-[30rem] w-[30rem] rounded-full bg-primary/10 blur-[150px]" animate={{ x: [0, 50, 0], y: [0, -40, 0] }} transition={{ duration: 19, repeat: Infinity, ease: "easeInOut" }} />
+          <motion.div aria-hidden className="absolute -right-40 top-[48%] h-[28rem] w-[28rem] rounded-full bg-indigo-400/10 blur-[150px]" animate={{ x: [0, -60, 0], y: [0, 50, 0] }} transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }} />
+          <motion.div aria-hidden className="absolute left-[40%] top-[78%] h-[24rem] w-[24rem] rounded-full bg-fuchsia-400/8 blur-[150px]" animate={{ x: [0, 40, 0], y: [0, -30, 0] }} transition={{ duration: 21, repeat: Infinity, ease: "easeInOut" }} />
+        </div>
 
-        
         {/* Hero Content now below the banner */}
-        <section className="px-4 pb-20">
+        <section className="relative z-10 px-4 pb-20">
           <div className="mx-auto max-w-5xl text-center">
             <div className="glass mx-auto inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium text-foreground/70">
               <Sparkles className="h-3.5 w-3.5" /> The AI hiring screen · built for AI/ML teams in India
@@ -105,7 +112,7 @@ function Index() {
         </section>
 
         {/* Hero glass preview card */}
-        <section className="px-4 pb-24">
+        <section className="relative z-10 px-4 pb-24">
           <div className="relative mx-auto max-w-5xl">
             <div className="glass-strong rounded-3xl p-2">
               <div className="grid gap-2 sm:grid-cols-3">
@@ -113,14 +120,16 @@ function Index() {
                   { icon: FileText, title: "Apply in minutes", body: "Resume + a few screening answers. You get an instant AI report on your fit — no live interview to start." },
                   { icon: Mic, title: "Live AI voice interview", body: "Shortlisted candidates have a real spoken conversation with an AI that asks follow-ups. It can't be ghost-written." },
                   { icon: BarChart3, title: "Ranked, with evidence", body: "Every candidate scored against your rubric — each score backed by verbatim quotes. You only meet the top few." },
-                ].map(({ icon: Icon, title, body }) => (
-                  <div key={title} className="glass rounded-2xl p-5">
-                    <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-                  </div>
+                ].map(({ icon: Icon, title, body }, i) => (
+                  <Reveal key={title} delay={i * 0.1} className="h-full">
+                    <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="group glass h-full rounded-2xl p-5 transition-shadow duration-300 hover:shadow-[0_24px_60px_-24px_rgba(99,102,241,0.5)]">
+                      <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+                    </motion.div>
+                  </Reveal>
                 ))}
               </div>
             </div>
@@ -128,39 +137,43 @@ function Index() {
         </section>
 
         {/* How it works */}
-        <section className="px-4 pb-24">
+        <section className="relative z-10 px-4 pb-24">
           <div className="mx-auto max-w-6xl">
-            <div className="mb-12 text-center">
+            <Reveal className="mb-12 text-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">How it works</span>
               <h2 className="mt-5 font-display text-3xl font-bold tracking-tight sm:text-4xl">From application to offer, intelligently</h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            </Reveal>
+            <div className="relative grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* connecting line on desktop */}
+              <div className="pointer-events-none absolute left-0 right-0 top-9 hidden h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent lg:block" />
               {[
                 { n: "01", icon: FileText, title: "Apply", body: "Upload a resume, answer a few screening questions, attach a project." },
                 { n: "02", icon: ScanSearch, title: "AI report", body: "Crux audits each application against the role and hands the recruiter a ranked report." },
                 { n: "03", icon: Mic, title: "Live AI interview", body: "Shortlisted candidates have a spoken interview with dynamic follow-ups." },
                 { n: "04", icon: BarChart3, title: "Decide", body: "Evidence-backed scores → the recruiter sends an offer or schedules a meeting." },
-              ].map(({ n, icon: Icon, title, body }) => (
-                <div key={n} className="glass rounded-2xl p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></div>
-                    <span className="font-display text-2xl font-bold text-foreground/15">{n}</span>
-                  </div>
-                  <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-                </div>
+              ].map(({ n, icon: Icon, title, body }, i) => (
+                <Reveal key={n} delay={i * 0.12}>
+                  <motion.div whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 280, damping: 20 }} className="group glass relative h-full rounded-2xl p-6 transition-shadow duration-300 hover:shadow-[0_28px_70px_-28px_rgba(99,102,241,0.55)]">
+                    <div className="flex items-center justify-between">
+                      <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground ring-4 ring-background transition-transform duration-300 group-hover:scale-110"><Icon className="h-5 w-5" /></div>
+                      <span className="font-display text-3xl font-bold text-foreground/10 transition-colors duration-300 group-hover:text-primary/30">{n}</span>
+                    </div>
+                    <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+                  </motion.div>
+                </Reveal>
               ))}
             </div>
           </div>
         </section>
 
         {/* Problems we fix — recruiters & applicants */}
-        <section className="px-4 pb-24">
+        <section className="relative z-10 px-4 pb-24">
           <div className="mx-auto max-w-6xl">
-            <div className="mb-12 text-center">
+            <Reveal className="mb-12 text-center">
               <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Hiring is broken on both sides</h2>
               <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">Crux fixes the same problem from two angles — so recruiters find real talent and applicants get a fair shot.</p>
-            </div>
+            </Reveal>
             <div className="grid gap-6 lg:grid-cols-2">
               {[
                 {
@@ -181,21 +194,23 @@ function Index() {
                     ["No way to stand out beyond a PDF", "Attach real projects and earn a verified skill credential you own and reuse."],
                   ],
                 },
-              ].map(({ icon: Icon, who, pairs }) => (
-                <div key={who} className="glass-strong rounded-3xl p-8">
-                  <div className="flex items-center gap-2.5">
-                    <div className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></div>
-                    <h3 className="font-display text-xl font-bold">{who}</h3>
+              ].map(({ icon: Icon, who, pairs }, ci) => (
+                <Reveal key={who} delay={ci * 0.12}>
+                  <div className="glass-strong h-full rounded-3xl p-8">
+                    <div className="flex items-center gap-2.5">
+                      <div className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></div>
+                      <h3 className="font-display text-xl font-bold">{who}</h3>
+                    </div>
+                    <div className="mt-6 space-y-3">
+                      {pairs.map(([problem, fix]) => (
+                        <div key={problem} className="rounded-2xl border border-transparent bg-secondary/40 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-secondary/70">
+                          <p className="text-sm text-muted-foreground line-through decoration-destructive/40">{problem}</p>
+                          <p className="mt-1.5 flex items-start gap-2 text-sm font-medium"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> <span>{fix}</span></p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="mt-6 space-y-3">
-                    {pairs.map(([problem, fix]) => (
-                      <div key={problem} className="rounded-2xl bg-secondary/40 p-4">
-                        <p className="text-sm text-muted-foreground line-through decoration-destructive/40">{problem}</p>
-                        <p className="mt-1.5 flex items-start gap-2 text-sm font-medium"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> <span>{fix}</span></p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -203,7 +218,7 @@ function Index() {
 
         {/* For you */}
         {user && isApplicant && matches && matches.length > 0 && (
-          <section className="px-4 pb-10">
+          <section className="relative z-10 px-4 pb-10">
             <div className="mx-auto max-w-6xl">
               <div className="mb-6 flex items-end justify-between">
                 <div>
@@ -290,11 +305,14 @@ function Index() {
         </section>
 
         {/* Closing CTA */}
-        <section className="px-4 py-24">
-          <div className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] glass-strong p-10 text-center sm:p-14">
-            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Ready to hire on signal, not noise?</h2>
-            <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Whether you're hiring or job-hunting, Crux gets you to a real conversation faster. Free to start.</p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <section className="relative z-10 px-4 py-24">
+          <Reveal className="mx-auto max-w-4xl">
+            <div className="group relative mx-auto overflow-hidden rounded-[2rem] glass-strong p-10 text-center sm:p-14">
+            {/* sheen sweep on hover */}
+            <div className="pointer-events-none absolute -inset-x-1/2 -top-1/2 h-[200%] w-[200%] -translate-x-full bg-gradient-to-r from-transparent via-primary/10 to-transparent transition-transform duration-1000 group-hover:translate-x-0" />
+            <h2 className="relative font-display text-3xl font-bold tracking-tight sm:text-4xl">Ready to hire on signal, not noise?</h2>
+            <p className="relative mx-auto mt-3 max-w-xl text-muted-foreground">Whether you're hiring or job-hunting, Crux gets you to a real conversation faster. Free to start.</p>
+            <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link to="/auth" className="glass-panel group inline-flex items-center gap-2 rounded-full bg-primary/80 px-6 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.04] active:scale-[0.97]">
                 Get started <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </Link>
@@ -302,7 +320,8 @@ function Index() {
                 Browse jobs
               </Link>
             </div>
-          </div>
+            </div>
+          </Reveal>
         </section>
 
         <footer className="border-t border-border/60 px-4 py-8 text-center text-xs text-muted-foreground">
