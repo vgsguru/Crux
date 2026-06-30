@@ -9,6 +9,7 @@ import { SiteNav } from "@/components/site-nav";
 import { startAsyncInterview, saveAsyncAnswer, finalizeAsyncInterview, transcribeAnswer } from "@/lib/async-interview.server";
 import { saveIntroVideo } from "@/lib/applications.server";
 import { LiveInterview } from "@/components/live-interview";
+import { GeminiLiveInterview } from "@/components/gemini-live-interview";
 import { ArrowLeft, Circle, Square, Check, CheckCircle2, Video } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +41,7 @@ function AsyncInterview() {
   const [introElapsed, setIntroElapsed] = useState(0);
   const [introBusy, setIntroBusy] = useState(false);
   const [mode, setMode] = useState<string>("async");
+  const [liveFallback, setLiveFallback] = useState(false);
   const introTimerRef = useRef<number | null>(null);
   const saveIntroFn = useServerFn(saveIntroVideo);
 
@@ -223,10 +225,14 @@ function AsyncInterview() {
           </div>
         )}
 
-        {/* Live AI interview (voice + cross-questioning) */}
+        {/* Live AI interview — Gemini Live (full-duplex voice); falls back to the browser engine. */}
         {introUrl && mode === "live" && appId && (
           <div className="mt-6">
-            <LiveInterview applicationId={appId} jobId={jobId} onComplete={(id) => navigate({ to: "/me/applications/$applicationId", params: { applicationId: id } })} />
+            {liveFallback ? (
+              <LiveInterview applicationId={appId} jobId={jobId} onComplete={(id) => navigate({ to: "/me/applications/$applicationId", params: { applicationId: id } })} />
+            ) : (
+              <GeminiLiveInterview applicationId={appId} onComplete={(id) => navigate({ to: "/me/applications/$applicationId", params: { applicationId: id } })} onFallback={() => setLiveFallback(true)} />
+            )}
           </div>
         )}
 

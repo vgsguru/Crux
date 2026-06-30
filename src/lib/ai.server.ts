@@ -97,6 +97,50 @@ export const startInterview = createServerFn({ method: "POST" })
     return { interviewId, questions: allQs, focus };
   });
 
+export const GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-09-2025";
+
+// Opens a Gemini Live (native-audio) session for an INVITED candidate. Returns the
+// connection key + the interviewer's system instruction (the recruiter's plan).
+// SECURITY: the key reaches the browser — restrict it by HTTP referrer in Google
+// Cloud Console (APIs & Services → Credentials) so it only works from your domain,
+// and rotate it before launch. Gated to the application's own applicant only.
+export const createLiveSession = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((input: unknown) => z.object({ applicationId: z.string() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("Live interview is not configured (missing GEMINI_API_KEY)");
+    const db = await getAdminDb();
+    const appSnap = await db.collection("applications").doc(data.applicationId).get();
+    if (!appSnap.exists) throw new Error("Application not found");
+    const app = appSnap.data() as any;
+    if (app.applicant_id !== context.userId) throw new Error("Forbidden");
+
+    const jobSnap = await db.collection("jobs").doc(app.job_id).get();
+    const job = jobSnap.exists ? (jobSnap.data() as any) : {};
+    const compSnap = job.company_id ? await db.collection("companies").doc(job.company_id).get() : null;
+    const company = compSnap?.exists ? (compSnap.data() as any) : null;
+    const questions: string[] = Array.isArray(job.questions) ? job.questions.filter(Boolean) : [];
+    const focus = (job.interview_focus || "").trim();
+
+    // Ensure an interview doc to attach the transcript/score to later.
+    const ivSnap = await db.collection("interviews").where("application_id", "==", data.applicationId).limit(1).get();
+    let interviewId: string;
+    if (!ivSnap.empty) { interviewId = ivSnap.docs[0].id; await db.collection("interviews").doc(interviewId).update({ started_at: new Date().toISOString(), mode: "live", questions, focus }); }
+    else { const ref = await db.collection("interviews").add({ application_id: data.applicationId, started_at: new Date().toISOString(), mode: "live", questions, focus }); interviewId = ref.id; }
+    await db.collection("applications").doc(data.applicationId).update({ status: "interview_in_progress" });
+
+    const systemInstruction = [
+      `You are a warm, sharp AI interviewer for ${company?.name ?? "a company"}, interviewing a candidate for the role of "${job.title ?? "this role"}".`,
+      focus ? `The interview's focus is: ${focus}.` : "",
+      `Role context: ${(job.description ?? "").slice(0, 800)}`,
+      questions.length ? `Conduct a natural, spoken interview. Cover these core questions, one at a time, in your own words:\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : "Conduct a natural, spoken interview covering the candidate's relevant experience and skills.",
+      `Rules: Speak conversationally and keep your turns short (1-3 sentences). After each answer, ask ONE follow-up only if the answer is vague or especially interesting (probe the weakest or most interesting point); otherwise move to the next core question. Do NOT reference the candidate's name, gender, age, or any personal identifier — assess skills and reasoning only. Begin by briefly greeting them and asking the first question. When all core questions are covered, thank them and say clearly: "That concludes our interview." Then stop talking.`,
+    ].filter(Boolean).join("\n\n");
+
+    return { apiKey: key, model: GEMINI_LIVE_MODEL, systemInstruction, interviewId };
+  });
+
 // The cross-questioning brain. After each answer, decide whether ONE sharp
 // follow-up would meaningfully probe deeper. Returns null to move on. Bias-blind.
 export const interviewFollowup = createServerFn({ method: "POST" })

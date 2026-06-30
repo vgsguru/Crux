@@ -40,6 +40,10 @@ env:
     secret: NVIDIA_API_KEY
   - variable: RESEND_API_KEY
     secret: RESEND_API_KEY
+  # Gemini — powers the live AI voice interview (key reaches the browser via a gated
+  # session fn; restrict it by HTTP referrer in Cloud Console).
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
 
   # ── Optional: self-hosted Chatterbox TTS (only if you run one) ──
   # - variable: CHATTERBOX_API_URL
