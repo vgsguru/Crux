@@ -30,9 +30,9 @@ service cloud.firestore {
         .hasOnly(['like_count', 'comment_count', 'share_count']);
     }
 
-    // Public-ish identity docs: anyone signed in can read; you edit your own.
+    // Public identity docs: anyone can read (public profile URLs work signed-out); you edit your own.
     match /profiles/{uid} {
-      allow read: if signedIn();
+      allow read: if true;
       allow write: if isSelf(uid);
     }
 
@@ -52,14 +52,14 @@ service cloud.firestore {
 
     // Companies: public read; only the owner writes.
     match /companies/{id} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create: if signedIn() && request.resource.data.owner_id == request.auth.uid;
       allow update, delete: if signedIn() && resource.data.owner_id == request.auth.uid;
     }
 
     // Jobs: public read; recruiter who created it writes.
     match /jobs/{id} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create: if signedIn() && request.resource.data.created_by == request.auth.uid;
       // Owner edits freely; any signed-in user may bump like/comment/share counters.
       allow update: if signedIn() && (resource.data.created_by == request.auth.uid || onlyCounters());
@@ -68,7 +68,7 @@ service cloud.firestore {
 
     // Feed posts: read by all; author creates/edits/deletes; counters bumpable by anyone.
     match /posts/{id} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create: if signedIn() && request.resource.data.author_id == request.auth.uid;
       allow update: if signedIn() && (resource.data.author_id == request.auth.uid || onlyCounters());
       allow delete: if signedIn() && resource.data.author_id == request.auth.uid;
@@ -114,7 +114,7 @@ service cloud.firestore {
     // Portable proof-of-skill credentials — readable by anyone signed in (shown on
     // profiles), written only by server functions when an interview is scored.
     match /credentials/{id} {
-      allow read: if signedIn();
+      allow read: if true; // shown on public profiles
       allow write: if false; // server-only (Admin SDK)
     }
 
@@ -125,6 +125,13 @@ service cloud.firestore {
 
     match /saved_jobs/{id} {
       allow read, write: if signedIn() && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // Company follows: anyone signed in can read (to show follower state); you create/delete your own.
+    match /follows/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.user_id == request.auth.uid;
+      allow delete: if signedIn() && resource.data.user_id == request.auth.uid;
     }
 
     // Recruiter-owned config collections.

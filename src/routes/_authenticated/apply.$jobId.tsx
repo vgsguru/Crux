@@ -124,7 +124,7 @@ function ApplyWizard() {
           <ResumeStep ensureApplicationId={ensureApplicationId} parseFn={parseFn} embedFn={embedFn} onDone={() => setStep("submit")} busy={busy} setBusy={setBusy} userId={user.id} />
         )}
         {step === "submit" && applicationId && (
-          <SubmitStep applicationId={applicationId} userId={user.id} onSubmitted={() => navigate({ to: "/me/applications" })} />
+          <SubmitStep applicationId={applicationId} jobId={jobId} userId={user.id} onSubmitted={() => navigate({ to: "/me/applications" })} />
         )}
       </main>
     </div>
@@ -169,11 +169,13 @@ function ResumeStep({ ensureApplicationId, parseFn, embedFn, onDone, userId, bus
   );
 }
 
-function SubmitStep({ applicationId, userId, onSubmitted }: { applicationId: string; userId: string; onSubmitted: () => void }) {
+function SubmitStep({ applicationId, jobId, userId, onSubmitted }: { applicationId: string; jobId: string; userId: string; onSubmitted: () => void }) {
   const submitFn = useServerFn(submitApplication);
   const [projectId, setProjectId] = useState("");
   const [projectLink, setProjectLink] = useState("");
+  const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [report, setReport] = useState<any>(null);
 
   const { data: posts } = useQuery({
     queryKey: ["my-showcase-posts", userId],
@@ -183,21 +185,87 @@ function SubmitStep({ applicationId, userId, onSubmitted }: { applicationId: str
     },
   });
 
+  // Phase-1 screening questions set by the recruiter.
+  const { data: questions } = useQuery({
+    queryKey: ["job-questions", jobId],
+    queryFn: async () => {
+      const snap = await getDoc(doc(db, "jobs", jobId));
+      const qs = snap.exists() ? (snap.data().questions as string[]) : [];
+      return (Array.isArray(qs) ? qs : []).filter(Boolean);
+    },
+  });
+
   async function submit() {
+    if (questions && questions.length > 0) {
+      const unanswered = questions.some((_, i) => !(answers[i] ?? "").trim());
+      if (unanswered) { toast.error("Please answer all screening questions"); return; }
+    }
     setSubmitting(true);
     try {
-      await submitFn({ data: { applicationId, projectPostId: projectId || null, projectLink: projectLink.trim() || null } });
-      toast.success("Application submitted! You'll be notified if you're shortlisted for an interview.");
-      onSubmitted();
+      const payload = (questions ?? []).map((q, i) => ({ q, a: (answers[i] ?? "").trim() }));
+      const res: any = await submitFn({ data: { applicationId, projectPostId: projectId || null, projectLink: projectLink.trim() || null, answers: payload } });
+      toast.success("Application submitted!");
+      setReport(res?.report ?? {});
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to submit");
     } finally { setSubmitting(false); }
   }
 
+  // After submit: show the applicant their AI report.
+  if (report) {
+    const list = (arr: any) => Array.isArray(arr) ? arr : [];
+    return (
+      <div className="glass-strong rounded-3xl p-8">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">Your application report</h2>
+          {report.overall_pct != null && (
+            <div className="text-right"><div className="font-display text-3xl font-bold">{Math.round(report.overall_pct)}%</div><p className="text-xs text-muted-foreground">role match</p></div>
+          )}
+        </div>
+        {report.summary && <p className="mt-3 text-sm text-foreground/80">{report.summary}</p>}
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          {list(report.matched_skills).length > 0 && (
+            <div className="rounded-2xl bg-emerald-500/5 p-4"><p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">What's strong</p><ul className="mt-2 space-y-1 text-sm">{list(report.matched_skills).map((s: string, i: number) => <li key={i}>✓ {s}</li>)}</ul></div>
+          )}
+          {list(report.gaps).length > 0 && (
+            <div className="rounded-2xl bg-amber-500/5 p-4"><p className="text-xs font-semibold uppercase tracking-wider text-amber-600">What's missing</p><ul className="mt-2 space-y-1 text-sm">{list(report.gaps).map((s: string, i: number) => <li key={i}>• {s}</li>)}</ul></div>
+          )}
+          {list(report.skills_to_learn).length > 0 && (
+            <div className="rounded-2xl bg-secondary/40 p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Skills to learn</p><ul className="mt-2 space-y-1 text-sm">{list(report.skills_to_learn).map((s: string, i: number) => <li key={i}>→ {s}</li>)}</ul></div>
+          )}
+          {list(report.projects_to_build).length > 0 && (
+            <div className="rounded-2xl bg-secondary/40 p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Projects to build</p><ul className="mt-2 space-y-1 text-sm">{list(report.projects_to_build).map((s: string, i: number) => <li key={i}>→ {s}</li>)}</ul></div>
+          )}
+        </div>
+        {report.answer_feedback && <p className="mt-4 rounded-2xl bg-secondary/30 p-4 text-sm text-foreground/75"><span className="font-medium">On your answers: </span>{report.answer_feedback}</p>}
+        <button onClick={onSubmitted} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:opacity-90">
+          Go to my applications <ArrowRight className="h-4 w-4" />
+        </button>
+        <p className="mt-3 text-center text-xs text-muted-foreground">The recruiter received this report. You'll be notified if you're shortlisted for the interview round.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="glass-strong rounded-3xl p-8">
       <div className="flex items-center gap-2 text-sm text-primary"><CheckCircle2 className="h-4 w-4" /> Resume uploaded & parsed</div>
-      <h2 className="mt-4 font-display text-xl font-semibold">Attach a relevant project <span className="text-sm font-normal text-muted-foreground">(optional)</span></h2>
+
+      {questions && questions.length > 0 && (
+        <div className="mt-5">
+          <h2 className="font-display text-xl font-semibold">Screening questions</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Answer in a few sentences each — the AI scores these alongside your resume.</p>
+          <div className="mt-4 space-y-4">
+            {questions.map((q, i) => (
+              <div key={i}>
+                <label className="text-sm font-medium">{i + 1}. {q}</label>
+                <textarea value={answers[i] ?? ""} onChange={(e) => setAnswers((a) => ({ ...a, [i]: e.target.value }))} rows={3} className="mt-1 w-full rounded-2xl border border-border bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-foreground/30 resize-none" placeholder="Your answer…" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <h2 className="mt-6 font-display text-xl font-semibold">Attach a relevant project <span className="text-sm font-normal text-muted-foreground">(optional)</span></h2>
       <p className="mt-1 text-sm text-muted-foreground">Show work that's relevant to this role — it strengthens your application.</p>
 
       {posts && posts.length > 0 && (
@@ -215,9 +283,9 @@ function SubmitStep({ applicationId, userId, onSubmitted }: { applicationId: str
       </div>
 
       <button disabled={submitting} onClick={submit} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
-        {submitting ? "Submitting…" : "Submit application"} <ArrowRight className="h-4 w-4" />
+        {submitting ? "Analyzing…" : "Submit application"} <ArrowRight className="h-4 w-4" />
       </button>
-      <p className="mt-3 text-center text-xs text-muted-foreground">We'll AI-audit your resume against the role and send the recruiter a ranked report. No live interview unless you're shortlisted.</p>
+      <p className="mt-3 text-center text-xs text-muted-foreground">We'll AI-audit your resume + answers and show you a report. No live interview unless you're shortlisted.</p>
     </div>
   );
 }

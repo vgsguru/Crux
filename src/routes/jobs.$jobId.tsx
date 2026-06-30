@@ -4,6 +4,7 @@ import { db } from "@/integrations/firebase/client";
 import { collection, doc, getDoc, getDocs, addDoc, deleteDoc, query, where, limit } from "firebase/firestore";
 import { SiteNav } from "@/components/site-nav";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { FollowButton } from "@/components/follow-button";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowRight, MapPin, Briefcase, Building2, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -118,6 +119,7 @@ function JobDetail() {
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <Building2 className="h-4 w-4" /> {job.companies?.name}
                 <VerifiedBadge status={job.companies?.verification_status} />
+                {job.companies?.id && <FollowButton companyId={job.companies.id} className="ml-auto px-3 py-1.5 text-xs" />}
               </div>
               <h1 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">{job.title}</h1>
               <div className="mt-4 flex flex-wrap gap-2 text-xs">

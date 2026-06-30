@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Loader2, ImagePlus, Video, Sparkles, X } from "lucide-react";
 import { generateJobOgImage, generateJobDescription, generateJobQuestions } from "@/lib/ai.server";
 import { embedJob } from "@/lib/match.server";
+import { notifyFollowers } from "@/lib/applications.server";
 import { screenJobPost } from "@/lib/moderation";
 
 export const Route = createFileRoute("/_authenticated/recruiter_/jobs/new")({
@@ -27,6 +28,7 @@ function NewJob() {
   const genDesc = useServerFn(generateJobDescription);
   const genQs = useServerFn(generateJobQuestions);
   const embed = useServerFn(embedJob);
+  const notifyFollowersFn = useServerFn(notifyFollowers);
   const { data: company } = useQuery({
     queryKey: ["my-company-new-job", user?.id],
     enabled: !!user,
@@ -45,6 +47,7 @@ function NewJob() {
   const [interviewMode, setInterviewMode] = useState("async");
   const [salary, setSalary] = useState("");
   const [questions, setQuestions] = useState<string[]>(["Tell us about a project you're proud of."]);
+  const [questionStyle, setQuestionStyle] = useState("balanced");
   const [rubric, setRubric] = useState<Rubric>({ skills: 25, experience: 25, communication: 25, culture_fit: 25 });
   const [busy, setBusy] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -95,9 +98,9 @@ function NewJob() {
     if (!title) { toast.error("Please enter a job title first"); return; }
     setAiGenerating(true);
     try {
-      const res = await genDesc({ data: { title, ideal } });
+      const res = await genDesc({ data: { title, ideal, existing: description } });
       if (res.description) setDescription(res.description);
-      toast.success("Description generated!");
+      toast.success(description.trim().length > 20 ? "Description enhanced!" : "Description generated!");
     } catch (e: any) { toast.error("Failed to generate: " + e.message); }
     finally { setAiGenerating(false); }
   }
@@ -106,7 +109,7 @@ function NewJob() {
     if (!title) { toast.error("Please enter a job title first"); return; }
     setAiGenerating(true);
     try {
-      const res = await genQs({ data: { title, description, ideal } });
+      const res = await genQs({ data: { title, description, ideal, style: questionStyle as any, count: 3 } });
       if (res.questions && res.questions.length > 0) setQuestions(res.questions);
       toast.success("Questions generated!");
     } catch (e: any) { toast.error("Failed to generate: " + e.message); }
@@ -155,7 +158,7 @@ function NewJob() {
         toast.success("Job posted!");
         // Only live jobs are shared to the feed.
         const tags = [employmentType, location].filter(Boolean).map((t) => t!.toString().toLowerCase().replace(/\s+/g, "-")).slice(0, 8);
-        await addDoc(collection(db, "posts"), {
+        const postRef = await addDoc(collection(db, "posts"), {
           kind: "job",
           author_id: user!.id,
           company_id: company.id,
@@ -167,6 +170,8 @@ function NewJob() {
           video_url: videoUrl || null,
           tags,
         });
+        // Notify everyone following this company.
+        notifyFollowersFn({ data: { companyId: company.id, postId: postRef.id, title } }).catch(() => {});
       }
       // Auto-generate a poster only if the recruiter didn't make one.
       if (!poster) genOg({ data: { jobId: data.id } }).catch(() => {});
@@ -217,10 +222,19 @@ function NewJob() {
           <div className="glass-strong rounded-3xl p-7">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-display text-lg font-semibold">Interview questions</h2>
-                <p className="mt-1 text-xs text-muted-foreground">The AI will ask these plus a few personalized to each resume.</p>
+                <h2 className="font-display text-lg font-semibold">Phase 1 — screening questions</h2>
+                <p className="mt-1 text-xs text-muted-foreground">Applicants answer these when they apply. The AI scores them with the resume. Re-generating <span className="font-medium">replaces</span> the list.</p>
               </div>
-              <button type="button" onClick={handleGenerateQs} disabled={aiGenerating} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline disabled:opacity-50">{aiGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : "✨"} Auto-generate</button>
+              <div className="flex items-center gap-2">
+                <select value={questionStyle} onChange={(e) => setQuestionStyle(e.target.value)} className="rounded-full border border-border bg-background/60 px-3 py-1.5 text-xs" title="Question style">
+                  <option value="balanced">Balanced</option>
+                  <option value="skill">Skill</option>
+                  <option value="creativity">Creativity</option>
+                  <option value="educational">Educational</option>
+                  <option value="out_of_box">Out-of-box</option>
+                </select>
+                <button type="button" onClick={handleGenerateQs} disabled={aiGenerating} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline disabled:opacity-50">{aiGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : "✨"} Generate 3</button>
+              </div>
             </div>
             <div className="mt-4 space-y-2">
               {questions.map((q, i) => (

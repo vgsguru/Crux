@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { nitro } from "nitro/vite";
 import viteReact from "@vitejs/plugin-react";
 
 // Standard TanStack Start + Vite setup (no Lovable wrapper).
@@ -31,6 +32,9 @@ export default defineConfig({
         client: { files: ["**/server/**"], specifiers: ["server-only"] },
       },
     }),
+    // Force the Node server preset (App Hosting / any Node host). Without this,
+    // the build auto-detected Cloudflare Workers, where firebase-admin won't run.
+    nitro({ preset: "node-server" }),
     viteReact(),
   ],
 });

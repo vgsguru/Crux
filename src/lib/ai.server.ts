@@ -429,26 +429,46 @@ export const generateSpeech = createServerFn({ method: "POST" })
     }
   });
 
+// If the recruiter already wrote a description we ENHANCE it (keep their facts,
+// polish clarity/structure); if it's empty we GENERATE one from title + ideal.
 export const generateJobDescription = createServerFn({ method: "POST" })
   .middleware([requireFirebaseAuth])
-  .inputValidator((input: unknown) => z.object({ title: z.string(), ideal: z.string() }).parse(input))
+  .inputValidator((input: unknown) => z.object({ title: z.string(), ideal: z.string(), existing: z.string().optional() }).parse(input))
   .handler(async ({ data }) => {
+    const hasExisting = (data.existing ?? "").trim().length > 20;
     const ai = await groqChat(GROQ_CHAT_MODEL, {
       messages: [
-        { role: "system", content: "You are an expert technical recruiter. Write a compelling, professional, 3-paragraph job description based on the title and ideal profile. Output plain text, no markdown formatting." },
-        { role: "user", content: `Title: ${data.title}\nIdeal Profile: ${data.ideal}` }
+        { role: "system", content: hasExisting
+          ? "You are an expert technical recruiter. Improve and polish the recruiter's EXISTING job description: keep all their facts and intent, fix grammar/clarity, structure into ~3 tight paragraphs, professional and compelling tone. Do not invent perks or requirements they didn't state. Output plain text, no markdown."
+          : "You are an expert technical recruiter. Write a compelling, professional, 3-paragraph job description based on the title and ideal profile. Output plain text, no markdown formatting." },
+        { role: "user", content: hasExisting
+          ? `Title: ${data.title}\nIdeal Profile: ${data.ideal}\n\nExisting description to improve:\n${data.existing}`
+          : `Title: ${data.title}\nIdeal Profile: ${data.ideal}` }
       ]
     });
     return { description: ai.choices[0].message.content };
   });
 
+const QUESTION_STYLE_HINT: Record<string, string> = {
+  skill: "Probe concrete, role-specific technical skills and hands-on experience.",
+  creativity: "Probe creative problem-solving and how they approach open-ended, ambiguous problems.",
+  educational: "Probe foundational concepts and knowledge depth — test understanding, not just recall.",
+  out_of_box: "Probe lateral, unconventional thinking and how they handle unexpected curveballs.",
+};
+
 export const generateJobQuestions = createServerFn({ method: "POST" })
   .middleware([requireFirebaseAuth])
-  .inputValidator((input: unknown) => z.object({ title: z.string(), description: z.string(), ideal: z.string() }).parse(input))
+  .inputValidator((input: unknown) => z.object({
+    title: z.string(), description: z.string(), ideal: z.string(),
+    style: z.enum(["skill", "creativity", "educational", "out_of_box", "balanced"]).optional(),
+    count: z.number().min(1).max(8).optional(),
+  }).parse(input))
   .handler(async ({ data }) => {
+    const count = data.count ?? 3;
+    const hint = data.style && data.style !== "balanced" ? QUESTION_STYLE_HINT[data.style] : "Mix technical and behavioral angles.";
     const ai = await groqChat(GROQ_CHAT_MODEL, {
       messages: [
-        { role: "system", content: "You are an expert interviewer. Given a job title and description, generate exactly 3 technical or behavioral interview questions. Output strictly a JSON array of strings." },
+        { role: "system", content: `You are an expert interviewer. Generate exactly ${count} interview questions for the role. ${hint} Keep each question one sentence, answerable in a short paragraph. Output strictly a JSON object: {"questions": string[]}.` },
         { role: "user", content: `Title: ${data.title}\nDesc: ${data.description}\nIdeal: ${data.ideal}` }
       ],
       response_format: { type: "json_object" }
@@ -459,7 +479,7 @@ export const generateJobQuestions = createServerFn({ method: "POST" })
       if (Array.isArray(parsed)) qs = parsed;
       else if (parsed.questions && Array.isArray(parsed.questions)) qs = parsed.questions;
     } catch(e) {}
-    return { questions: qs };
+    return { questions: qs.slice(0, count) };
   });
 
 export const generatePostCaption = createServerFn({ method: "POST" })

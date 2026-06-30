@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { db } from "@/integrations/firebase/client";
@@ -7,7 +8,7 @@ import { SiteNav } from "@/components/site-nav";
 import { ArrowLeft, FileText, Play, Check, AlertTriangle, Download, RefreshCw, Quote, Clock, BarChart2 } from "lucide-react";
 import { setRetakeAllowed } from "@/lib/ai.server";
 import { computeResumeMatch, getApplicationPercentile } from "@/lib/scoring.server";
-import { inviteToInterview } from "@/lib/applications.server";
+import { inviteToInterview, decideCandidate } from "@/lib/applications.server";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
@@ -24,6 +25,7 @@ type AppData = {
   score_breakdown: Record<string, number> | null; score_evidence: Evidence | null;
   ai_summary: string | null; ai_highlights: Highlights | null;
   resume_match: { matched_skills: string[]; gaps: string[]; extras: string[]; overall_pct: number; summary: string } | null;
+  screening_answers?: { q: string; a: string }[];
   resume_url: string | null; resume_text: string | null;
   intro_video_url: string | null; intro_transcript: string | null;
   retake_allowed: boolean; retake_count: number; audit_log: AuditEntry[];
@@ -41,11 +43,24 @@ function ApplicationReview() {
     queryFn: async () => pctFn({ data: { applicationId } }) as Promise<{ percentile: number | null }>,
   });
   const inviteFn = useServerFn(inviteToInterview);
+  const [deadlineDays, setDeadlineDays] = useState(7);
   const invite = useMutation({
-    mutationFn: async () => inviteFn({ data: { applicationId } }),
-    onSuccess: () => { toast.success("Candidate invited to the interview round"); refetch(); },
+    mutationFn: async () => inviteFn({ data: { applicationId, deadlineDays } }),
+    onSuccess: () => { toast.success("Candidate invited — email sent with deadline"); refetch(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
+  const decideFn = useServerFn(decideCandidate);
+  const decide = useMutation({
+    mutationFn: async (v: { action: "offer" | "schedule" | "reject"; details?: string }) => decideFn({ data: { applicationId, ...v } }),
+    onSuccess: (_d, v) => { toast.success(v.action === "reject" ? "Candidate notified" : v.action === "offer" ? "Offer sent" : "Meeting request sent"); refetch(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+  function runDecision(action: "offer" | "schedule" | "reject") {
+    const labels = { offer: "Add an optional note for the offer email:", schedule: "Meeting details (date, time, video link):", reject: "Optional message to the candidate:" } as const;
+    const details = window.prompt(labels[action]) ?? "";
+    if (action === "reject" && !window.confirm("Send rejection to this candidate?")) return;
+    decide.mutate({ action, details });
+  }
   const runMatch = useMutation({
     mutationFn: async () => matchFn({ data: { applicationId } }),
     onSuccess: () => { toast.success("Resume match computed"); refetch(); },
@@ -221,12 +236,17 @@ function ApplicationReview() {
         <div className="flex items-center justify-between">
           <Link to="/recruiter" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</Link>
           <div className="flex items-center gap-2">
-            {app.status === "interview_invited" || app.status === "interview_in_progress" || app.status === "scored" ? (
+            {app.status === "interview_invited" || app.status === "interview_in_progress" || app.status === "scored" || app.status === "offer_sent" || app.status === "meeting_scheduled" || app.status === "rejected" ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary"><Check className="h-4 w-4" /> Invited to interview</span>
             ) : (
-              <button onClick={() => invite.mutate()} disabled={invite.isPending} className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50">
-                <Check className="h-4 w-4" /> {invite.isPending ? "Inviting…" : "Invite to interview"}
-              </button>
+              <>
+                <select value={deadlineDays} onChange={(e) => setDeadlineDays(Number(e.target.value))} className="rounded-full border border-border bg-background px-3 py-2 text-xs" title="Deadline">
+                  <option value={3}>3 days</option><option value={5}>5 days</option><option value={7}>7 days</option><option value={14}>14 days</option>
+                </select>
+                <button onClick={() => invite.mutate()} disabled={invite.isPending} className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50">
+                  <Check className="h-4 w-4" /> {invite.isPending ? "Inviting…" : "Invite to interview"}
+                </button>
+              </>
             )}
             <button onClick={exportPdf} className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90">
               <Download className="h-4 w-4" /> Export PDF
@@ -274,6 +294,42 @@ function ApplicationReview() {
             </div>
             <button onClick={() => runMatch.mutate()} disabled={runMatch.isPending} className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium hover:bg-foreground hover:text-background disabled:opacity-50">{runMatch.isPending ? "Analyzing…" : app.resume_match ? "Re-analyze" : "Run analysis"}</button>
           </div>
+        </div>
+
+        {/* Phase-1 screening answers */}
+        {app.screening_answers && app.screening_answers.length > 0 && (
+          <div className="glass mt-4 rounded-3xl p-5">
+            <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-muted-foreground">Phase 1 — screening answers</h3>
+            <div className="mt-3 space-y-3">
+              {app.screening_answers.map((qa, i) => (
+                <div key={i}>
+                  <p className="text-sm font-medium">{i + 1}. {qa.q}</p>
+                  <p className="mt-0.5 whitespace-pre-wrap text-sm text-foreground/75">{qa.a || <span className="italic text-muted-foreground">(no answer)</span>}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Final decision */}
+        <div className="glass-strong mt-4 rounded-3xl p-5">
+          <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-muted-foreground">Final decision</h3>
+          {app.status === "offer_sent" ? (
+            <p className="mt-2 text-sm font-medium text-emerald-600">✓ Offer sent to candidate.</p>
+          ) : app.status === "meeting_scheduled" ? (
+            <p className="mt-2 text-sm font-medium text-primary">✓ Meeting request sent.</p>
+          ) : app.status === "rejected" ? (
+            <p className="mt-2 text-sm font-medium text-muted-foreground">Candidate was not selected.</p>
+          ) : (
+            <>
+              <p className="mt-1 text-xs text-muted-foreground">Choose who to recruit. The candidate is emailed and notified.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={() => runDecision("offer")} disabled={decide.isPending} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"><Check className="h-4 w-4" /> Send offer</button>
+                <button onClick={() => runDecision("schedule")} disabled={decide.isPending} className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"><Clock className="h-4 w-4" /> Schedule meeting</button>
+                <button onClick={() => runDecision("reject")} disabled={decide.isPending} className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"><AlertTriangle className="h-4 w-4" /> Reject</button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Retake control */}

@@ -83,12 +83,13 @@ export function SiteNav() {
   const [unreadCount, setUnreadCount] = useState(0);
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
-    const q = query(
-      collection(db, "notifications"),
-      where("user_id", "==", user.uid),
-      where("read_at", "==", null),
+    // Single equality filter (no composite index); count unread client-side.
+    const q = query(collection(db, "notifications"), where("user_id", "==", user.uid));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setUnreadCount(snap.docs.filter((d) => !d.data().read_at).length),
+      () => setUnreadCount(0),
     );
-    const unsub = onSnapshot(q, (snap) => setUnreadCount(snap.size), () => setUnreadCount(0));
     return () => unsub();
   }, [user]);
 

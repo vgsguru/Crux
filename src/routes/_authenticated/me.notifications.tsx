@@ -24,14 +24,12 @@ function NotificationsPage() {
     queryKey: ["notifications", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const q = query(
-        collection(db, "notifications"),
-        where("user_id", "==", user!.id),
-        orderBy("created_at", "desc"),
-        limit(100)
-      );
+      // Equality-only (no composite index); sort + cap in JS.
+      const q = query(collection(db, "notifications"), where("user_id", "==", user!.id));
       const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...d.data() })) as N[];
+      return (snap.docs.map(d => ({ id: d.id, ...d.data() })) as N[])
+        .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+        .slice(0, 100);
     },
   });
   const markAll = useMutation({

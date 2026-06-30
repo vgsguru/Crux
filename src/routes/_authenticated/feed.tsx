@@ -119,6 +119,16 @@ function FeedPage() {
 
   const posts = useMemo(() => feedQuery.data?.pages.flatMap((p) => p.posts) ?? [], [feedQuery.data]);
 
+  // Companies the viewer follows — their posts are boosted to the top of the feed.
+  const { data: followedIds } = useQuery({
+    queryKey: ["my-follows", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const snap = await getDocs(query(collection(db, "follows"), where("user_id", "==", user!.id)));
+      return new Set(snap.docs.map((d) => (d.data() as any).company_id as string));
+    },
+  });
+
   const [search, setSearch] = useState("");
 
   // People + companies directory for search (fetched once, filtered client-side).
@@ -142,15 +152,23 @@ function FeedPage() {
 
   const visiblePosts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return posts;
-    return posts.filter((p: any) => {
+    const base = !q ? posts : posts.filter((p: any) => {
       const hay = [
         p.title, p.body, (p.tags ?? []).join(" "), (p.mentions ?? []).join(" "),
         p.author?.full_name, p.author?.username, p.company?.name, p.location,
       ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(q);
     });
-  }, [posts, search]);
+    // Boost followed-company posts to the top (stable sort keeps recency within groups).
+    if (followedIds && followedIds.size) {
+      return [...base].sort((a: any, b: any) => {
+        const af = a.company_id && followedIds.has(a.company_id) ? 1 : 0;
+        const bf = b.company_id && followedIds.has(b.company_id) ? 1 : 0;
+        return bf - af;
+      });
+    }
+    return base;
+  }, [posts, search, followedIds]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
