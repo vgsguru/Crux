@@ -32,6 +32,7 @@ const CONTENT = [
   "notifications", "saved_jobs", "application_messages",
   "message_templates", "question_bank", "interview_templates",
   "interview_template_questions", "role_audit",
+  "follows", "score_audits",
 ];
 const IDENTITY = ["users", "profiles", "companies", "usernames"];
 
