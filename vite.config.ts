@@ -32,9 +32,10 @@ export default defineConfig({
         client: { files: ["**/server/**"], specifiers: ["server-only"] },
       },
     }),
-    // Force the Node server preset (App Hosting / any Node host). Without this,
-    // the build auto-detected Cloudflare Workers, where firebase-admin won't run.
-    nitro({ preset: "node-server" }),
+    // On Vercel, build the Vercel (serverless) target; locally/elsewhere build a
+    // standalone Node server. Avoids the Cloudflare auto-detection (firebase-admin
+    // doesn't run on Workers).
+    nitro({ preset: process.env.VERCEL ? "vercel" : "node-server" }),
     viteReact(),
   ],
 });
