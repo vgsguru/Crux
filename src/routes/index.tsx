@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { SiteNav } from "@/components/site-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { recommendJobsForMe } from "@/lib/match.server";
-import { ArrowRight, Briefcase, Camera, Sparkles, BarChart3, Wand2, ChevronDown } from "lucide-react";
+import { ArrowRight, Briefcase, Camera, Sparkles, BarChart3, Wand2, ChevronDown, Mic, FileText, ShieldCheck, Users, UserCheck, MessageSquareText, Zap, ScanSearch, Check } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -91,6 +91,16 @@ function Index() {
                 <span className="relative z-10">Browse open jobs</span>
               </Link>
             </div>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+              {[
+                { icon: Zap, label: "Free to start" },
+                { icon: Mic, label: "Live AI voice interview" },
+                { icon: ShieldCheck, label: "Bias-blind & auditable" },
+                { icon: BarChart3, label: "Ranked with evidence" },
+              ].map(({ icon: Icon, label }) => (
+                <span key={label} className="inline-flex items-center gap-1.5"><Icon className="h-3.5 w-3.5" /> {label}</span>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -100,8 +110,8 @@ function Index() {
             <div className="glass-strong rounded-3xl p-2">
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
-                  { icon: Briefcase, title: "Apply, then prove it", body: "Resume + a 60-second pitch + short async answers. Low friction — no live interview to start." },
-                  { icon: Camera, title: "Personalized AI interview", body: "Questions are generated from each candidate's own resume, so answers can't be ghost-written or pre-canned." },
+                  { icon: FileText, title: "Apply in minutes", body: "Resume + a few screening answers. You get an instant AI report on your fit — no live interview to start." },
+                  { icon: Mic, title: "Live AI voice interview", body: "Shortlisted candidates have a real spoken conversation with an AI that asks follow-ups. It can't be ghost-written." },
                   { icon: BarChart3, title: "Ranked, with evidence", body: "Every candidate scored against your rubric — each score backed by verbatim quotes. You only meet the top few." },
                 ].map(({ icon: Icon, title, body }) => (
                   <div key={title} className="glass rounded-2xl p-5">
@@ -113,6 +123,80 @@ function Index() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section className="px-4 pb-24">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-12 text-center">
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">How it works</span>
+              <h2 className="mt-5 font-display text-3xl font-bold tracking-tight sm:text-4xl">From application to offer, intelligently</h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { n: "01", icon: FileText, title: "Apply", body: "Upload a resume, answer a few screening questions, attach a project." },
+                { n: "02", icon: ScanSearch, title: "AI report", body: "Crux audits each application against the role and hands the recruiter a ranked report." },
+                { n: "03", icon: Mic, title: "Live AI interview", body: "Shortlisted candidates have a spoken interview with dynamic follow-ups." },
+                { n: "04", icon: BarChart3, title: "Decide", body: "Evidence-backed scores → the recruiter sends an offer or schedules a meeting." },
+              ].map(({ n, icon: Icon, title, body }) => (
+                <div key={n} className="glass rounded-2xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></div>
+                    <span className="font-display text-2xl font-bold text-foreground/15">{n}</span>
+                  </div>
+                  <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Problems we fix — recruiters & applicants */}
+        <section className="px-4 pb-24">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-12 text-center">
+              <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Hiring is broken on both sides</h2>
+              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">Crux fixes the same problem from two angles — so recruiters find real talent and applicants get a fair shot.</p>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {[
+                {
+                  icon: Users, who: "For recruiters",
+                  pairs: [
+                    ["Drowning in inflated, keyword-stuffed resumes", "AI screens every applicant against your rubric and ranks them — best fits first."],
+                    ["Answers that are ghost-written or AI-generated", "A live voice interview with dynamic follow-ups that can't be pre-scripted."],
+                    ["Screening is slow and quietly biased", "Bias-blind scoring (no name, age, or gender) with a defensible audit trail."],
+                    ["Fake companies and scam posts erode trust", "Company verification + automatic scam screening keep the marketplace clean."],
+                  ],
+                },
+                {
+                  icon: UserCheck, who: "For applicants",
+                  pairs: [
+                    ["Resumes rejected by keyword filters you never see", "Judged on a real conversation and your actual skills — not buzzwords."],
+                    ["Applications vanish into silence, no feedback", "Every applicant gets an AI report: what's strong, what's missing, what to learn."],
+                    ["A draining live interview for every single job", "One quick apply — you only interview if a recruiter shortlists you."],
+                    ["No way to stand out beyond a PDF", "Attach real projects and earn a verified skill credential you own and reuse."],
+                  ],
+                },
+              ].map(({ icon: Icon, who, pairs }) => (
+                <div key={who} className="glass-strong rounded-3xl p-8">
+                  <div className="flex items-center gap-2.5">
+                    <div className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground"><Icon className="h-5 w-5" /></div>
+                    <h3 className="font-display text-xl font-bold">{who}</h3>
+                  </div>
+                  <div className="mt-6 space-y-3">
+                    {pairs.map(([problem, fix]) => (
+                      <div key={problem} className="rounded-2xl bg-secondary/40 p-4">
+                        <p className="text-sm text-muted-foreground line-through decoration-destructive/40">{problem}</p>
+                        <p className="mt-1.5 flex items-start gap-2 text-sm font-medium"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> <span>{fix}</span></p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -201,6 +285,22 @@ function Index() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </section>
+
+        {/* Closing CTA */}
+        <section className="px-4 py-24">
+          <div className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] glass-strong p-10 text-center sm:p-14">
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Ready to hire on signal, not noise?</h2>
+            <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Whether you're hiring or job-hunting, Crux gets you to a real conversation faster. Free to start.</p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Link to="/auth" className="glass-panel group inline-flex items-center gap-2 rounded-full bg-primary/80 px-6 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.04] active:scale-[0.97]">
+                Get started <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              </Link>
+              <Link to="/jobs" className="glass-panel inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-foreground/90 transition-transform hover:scale-[1.04] active:scale-[0.97]">
+                Browse jobs
+              </Link>
             </div>
           </div>
         </section>
