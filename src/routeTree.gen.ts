@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JobsIndexRouteImport } from './routes/jobs.index'
 import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
+import { Route as CompanyCompanyIdRouteImport } from './routes/company.$companyId'
 import { Route as AuthenticatedRecruiterRouteImport } from './routes/_authenticated/recruiter'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
@@ -70,6 +71,11 @@ const JobsIndexRoute = JobsIndexRouteImport.update({
 const JobsJobIdRoute = JobsJobIdRouteImport.update({
   id: '/jobs/$jobId',
   path: '/jobs/$jobId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanyCompanyIdRoute = CompanyCompanyIdRouteImport.update({
+  id: '/company/$companyId',
+  path: '/company/$companyId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRecruiterRoute = AuthenticatedRecruiterRouteImport.update({
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/feed': typeof AuthenticatedFeedRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/recruiter': typeof AuthenticatedRecruiterRoute
+  '/company/$companyId': typeof CompanyCompanyIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/jobs/': typeof JobsIndexRoute
   '/admin/verifications': typeof AuthenticatedAdminVerificationsRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/feed': typeof AuthenticatedFeedRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/recruiter': typeof AuthenticatedRecruiterRoute
+  '/company/$companyId': typeof CompanyCompanyIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/jobs': typeof JobsIndexRoute
   '/admin/verifications': typeof AuthenticatedAdminVerificationsRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/recruiter': typeof AuthenticatedRecruiterRoute
+  '/company/$companyId': typeof CompanyCompanyIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/jobs/': typeof JobsIndexRoute
   '/_authenticated/admin/verifications': typeof AuthenticatedAdminVerificationsRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/onboarding'
     | '/recruiter'
+    | '/company/$companyId'
     | '/jobs/$jobId'
     | '/jobs/'
     | '/admin/verifications'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/onboarding'
     | '/recruiter'
+    | '/company/$companyId'
     | '/jobs/$jobId'
     | '/jobs'
     | '/admin/verifications'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/feed'
     | '/_authenticated/onboarding'
     | '/_authenticated/recruiter'
+    | '/company/$companyId'
     | '/jobs/$jobId'
     | '/jobs/'
     | '/_authenticated/admin/verifications'
@@ -442,6 +454,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   UsernameRoute: typeof UsernameRoute
   AuthRoute: typeof AuthRoute
+  CompanyCompanyIdRoute: typeof CompanyCompanyIdRoute
   JobsJobIdRoute: typeof JobsJobIdRoute
   JobsIndexRoute: typeof JobsIndexRoute
   ApiPublicOgJobsFileRoute: typeof ApiPublicOgJobsFileRoute
@@ -489,6 +502,13 @@ declare module '@tanstack/react-router' {
       path: '/jobs/$jobId'
       fullPath: '/jobs/$jobId'
       preLoaderRoute: typeof JobsJobIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company/$companyId': {
+      id: '/company/$companyId'
+      path: '/company/$companyId'
+      fullPath: '/company/$companyId'
+      preLoaderRoute: typeof CompanyCompanyIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/recruiter': {
@@ -797,6 +817,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   UsernameRoute: UsernameRoute,
   AuthRoute: AuthRoute,
+  CompanyCompanyIdRoute: CompanyCompanyIdRoute,
   JobsJobIdRoute: JobsJobIdRoute,
   JobsIndexRoute: JobsIndexRoute,
   ApiPublicOgJobsFileRoute: ApiPublicOgJobsFileRoute,

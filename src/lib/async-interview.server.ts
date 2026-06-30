@@ -175,6 +175,22 @@ export const finalizeAsyncInterview = createServerFn({ method: "POST" })
       created_at: new Date().toISOString(),
     }, { merge: true });
 
+    // Immutable audit trail: defensible record of exactly how this score was produced.
+    await db.collection("score_audits").add({
+      application_id: iv.application_id,
+      job_id: app.job_id,
+      applicant_id: app.applicant_id,
+      kind: "async_interview",
+      model: GROQ_CHAT_MODEL,
+      rubric: job.rubric ?? null,
+      scores: parsed.scores,
+      total: parsed.total,
+      recommendation: parsed.recommendation ?? "",
+      pii_redacted: true,
+      question_count: transcript.length,
+      created_at: new Date().toISOString(),
+    });
+
     return { ok: true, total: parsed.total };
   });
 

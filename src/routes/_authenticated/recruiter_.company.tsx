@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -10,7 +10,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { requestCompanyVerification } from "@/lib/match.server";
 import { resolveUsername } from "@/lib/username";
 import { toast } from "sonner";
-import { ShieldCheck, Plus, Trash2, GripVertical, UserPlus, CheckCircle2, Clock } from "lucide-react";
+import { ShieldCheck, Plus, Trash2, GripVertical, UserPlus, CheckCircle2, Clock, Users, ArrowRight } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 export const Route = createFileRoute("/_authenticated/recruiter_/company")({
@@ -38,6 +38,12 @@ function CompanySettings() {
       const snap = await getDocs(q);
       return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
     },
+  });
+
+  const { data: followers } = useQuery({
+    queryKey: ["company-followers", company?.id],
+    enabled: !!company?.id,
+    queryFn: async () => (await getDocs(query(collection(db, "follows"), where("company_id", "==", company!.id)))).size,
   });
 
   useEffect(() => {
@@ -113,6 +119,12 @@ function CompanySettings() {
       <SiteNav />
       <main className="mx-auto max-w-2xl px-4 py-10 pb-32">
         <h1 className="font-display text-3xl font-bold tracking-tight">{company ? "Edit company" : "Create your company"}</h1>
+        {company && (
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><Users className="h-4 w-4" /> <b className="text-foreground">{followers ?? 0}</b> follower{followers === 1 ? "" : "s"}</span>
+            <Link to="/company/$companyId" params={{ companyId: company.id }} className="inline-flex items-center gap-1 underline hover:text-foreground">View public page <ArrowRight className="h-3.5 w-3.5" /></Link>
+          </div>
+        )}
         <form onSubmit={save} className="glass-strong mt-6 space-y-6 rounded-3xl p-7">
           <Field label="Company name">
             <input required value={name} onChange={(e) => setName(e.target.value)} className="input" />

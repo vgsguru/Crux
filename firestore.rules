@@ -165,6 +165,11 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false; // server-only
     }
+    // Immutable AI-scoring audit trail (fairness/defensibility). Server-only writes.
+    match /score_audits/{id} {
+      allow read: if isAdmin();
+      allow write: if false; // server-only (Admin SDK)
+    }
 
     // Verified recruitment claims: a recruiter tags someone they hired; the hired
     // member must approve before it counts. Recruiter creates; member approves/rejects.

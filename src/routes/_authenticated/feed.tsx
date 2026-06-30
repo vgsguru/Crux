@@ -235,8 +235,8 @@ function FeedPage() {
             {matchedCompanies.map((c: any) => (
               <Link
                 key={`c-${c.id}`}
-                to="/profile/$userId"
-                params={{ userId: c.owner_id }}
+                to="/company/$companyId"
+                params={{ companyId: c.id }}
                 className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-secondary/60"
               >
                 {c.logo_url ? <img src={c.logo_url} alt="" className="h-9 w-9 rounded-xl object-cover" /> : <div className="grid h-9 w-9 place-items-center rounded-xl bg-secondary"><Briefcase className="h-4 w-4" /></div>}

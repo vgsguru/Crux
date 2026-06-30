@@ -117,7 +117,10 @@ function JobDetail() {
           <>
             <div className="glass-strong rounded-3xl p-8 sm:p-10">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Building2 className="h-4 w-4" /> {job.companies?.name}
+                <Building2 className="h-4 w-4" />
+                {job.companies?.id ? (
+                  <Link to="/company/$companyId" params={{ companyId: job.companies.id }} className="font-medium hover:text-foreground hover:underline">{job.companies?.name}</Link>
+                ) : job.companies?.name}
                 <VerifiedBadge status={job.companies?.verification_status} />
                 {job.companies?.id && <FollowButton companyId={job.companies.id} className="ml-auto px-3 py-1.5 text-xs" />}
               </div>
