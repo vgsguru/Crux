@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware.server";
 import { z } from "zod";
 import { getAdminDb, getAdminAuth } from '@/integrations/firebase/admin';
-import sharp from "sharp";
 import { getStorage } from "firebase-admin/storage";
 import { groqChat, geminiChat, chatterboxTts, extractJson, redactPII, sendEmail, GROQ_CHAT_MODEL } from '@/lib/ai-providers.server';
 
@@ -348,6 +347,8 @@ export const generateJobOgImage = createServerFn({ method: "POST" })
         }
       } catch (e) { console.error("NVIDIA image failed, using gradient fallback", e); }
     }
+    // Lazy-load sharp (native module) only here so it never crashes module import on serverless.
+    const sharp = (await import("sharp")).default;
     if (!bgBuffer) {
       const gradient = `<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="0.55" stop-color="#0b1020"/><stop offset="1" stop-color="#3730a3"/></linearGradient><radialGradient id="r" cx="80%" cy="20%" r="60%"><stop offset="0" stop-color="#6366f1" stop-opacity="0.45"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/></radialGradient></defs><rect width="1200" height="630" fill="url(#g)"/><rect width="1200" height="630" fill="url(#r)"/></svg>`;
       bgBuffer = await sharp(Buffer.from(gradient)).png().toBuffer();

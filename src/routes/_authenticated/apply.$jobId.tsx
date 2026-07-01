@@ -40,6 +40,19 @@ function ApplyWizard() {
       navigate({ to: "/jobs" });
     }
   }, [authLoading, isRecruiter, navigate]);
+
+  // Require a completed profile (name) before applying.
+  useEffect(() => {
+    if (authLoading || !user || isRecruiter) return;
+    (async () => {
+      const snap = await getDoc(doc(db, "profiles", user.id));
+      const name = snap.exists() ? (snap.data().full_name as string) : "";
+      if (!name || !name.trim()) {
+        toast.error("Complete your profile before applying.");
+        navigate({ to: "/me/profile" });
+      }
+    })();
+  }, [authLoading, user, isRecruiter, navigate]);
   const parseFn = useServerFn(parseResume);
   const transcribeFn = useServerFn(transcribeIntro);
   const startFn = useServerFn(startInterview);

@@ -11,7 +11,7 @@ import { ArrowRight, Briefcase, Camera, Sparkles, BarChart3, Wand2, ChevronDown,
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Crux — AI-powered hiring with live video interviews" },
+      { title: "Crux" },
       { name: "description", content: "Post jobs, run live AI video interviews, and rank applicants automatically. Built for fast, fair hiring." },
     ],
   }),
@@ -258,7 +258,7 @@ function Index() {
           <div className="relative z-10 w-full max-w-6xl">
             <div className="text-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-white/70">
-                The makers
+                meinewelt-crux
               </span>
               <h2 className="mt-6 font-display text-5xl font-bold tracking-tight text-white sm:text-6xl">
                 Our{" "}

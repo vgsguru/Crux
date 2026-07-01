@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { db, storage } from "@/integrations/firebase/client";
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, getDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
@@ -120,6 +120,11 @@ function NewJob() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // Require a completed profile (name) before posting.
+    const pSnap = await getDoc(doc(db, "profiles", user!.id));
+    if (!pSnap.exists() || !((pSnap.data().full_name as string) || "").trim()) {
+      toast.error("Complete your profile before posting a job."); navigate({ to: "/me/profile" }); return;
+    }
     if (!company) { toast.error("Create a company first"); navigate({ to: "/recruiter/company" }); return; }
     setBusy(true);
     try {

@@ -61,7 +61,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Crux — Hire with AI, decide with confidence" },
+      { title: "Crux" },
       { name: "description", content: "Post a job, let candidates apply, and watch our AI run live video interviews. Get every applicant scored and ranked automatically." },
       { property: "og:title", content: "Crux — Hire with AI" },
       { property: "og:description", content: "Live AI video interviews and automatic candidate ranking." },
@@ -74,6 +74,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-title", content: "Crux" },
     ],
     links: [
+      { rel: "icon", type: "image/png", href: "/logo_black.png" },
+      { rel: "apple-touch-icon", href: "/logo_black.png" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
