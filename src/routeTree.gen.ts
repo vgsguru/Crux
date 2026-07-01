@@ -24,6 +24,7 @@ import { Route as ApiBlobUploadRouteImport } from './routes/api/blob.upload'
 import { Route as AuthenticatedRecruiterTemplatesRouteImport } from './routes/_authenticated/recruiter_.templates'
 import { Route as AuthenticatedRecruiterQuestionBankRouteImport } from './routes/_authenticated/recruiter_.question-bank'
 import { Route as AuthenticatedRecruiterMessageTemplatesRouteImport } from './routes/_authenticated/recruiter_.message-templates'
+import { Route as AuthenticatedRecruiterDiscoverRouteImport } from './routes/_authenticated/recruiter_.discover'
 import { Route as AuthenticatedRecruiterCompanyRouteImport } from './routes/_authenticated/recruiter_.company'
 import { Route as AuthenticatedRecruiterAuditRouteImport } from './routes/_authenticated/recruiter_.audit'
 import { Route as AuthenticatedProfileUserIdRouteImport } from './routes/_authenticated/profile.$userId'
@@ -120,6 +121,12 @@ const AuthenticatedRecruiterMessageTemplatesRoute =
   AuthenticatedRecruiterMessageTemplatesRouteImport.update({
     id: '/recruiter_/message-templates',
     path: '/recruiter/message-templates',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedRecruiterDiscoverRoute =
+  AuthenticatedRecruiterDiscoverRouteImport.update({
+    id: '/recruiter_/discover',
+    path: '/recruiter/discover',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRecruiterCompanyRoute =
@@ -259,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/profile/$userId': typeof AuthenticatedProfileUserIdRoute
   '/recruiter/audit': typeof AuthenticatedRecruiterAuditRoute
   '/recruiter/company': typeof AuthenticatedRecruiterCompanyRoute
+  '/recruiter/discover': typeof AuthenticatedRecruiterDiscoverRoute
   '/recruiter/message-templates': typeof AuthenticatedRecruiterMessageTemplatesRoute
   '/recruiter/question-bank': typeof AuthenticatedRecruiterQuestionBankRoute
   '/recruiter/templates': typeof AuthenticatedRecruiterTemplatesRoute
@@ -295,6 +303,7 @@ export interface FileRoutesByTo {
   '/profile/$userId': typeof AuthenticatedProfileUserIdRoute
   '/recruiter/audit': typeof AuthenticatedRecruiterAuditRoute
   '/recruiter/company': typeof AuthenticatedRecruiterCompanyRoute
+  '/recruiter/discover': typeof AuthenticatedRecruiterDiscoverRoute
   '/recruiter/message-templates': typeof AuthenticatedRecruiterMessageTemplatesRoute
   '/recruiter/question-bank': typeof AuthenticatedRecruiterQuestionBankRoute
   '/recruiter/templates': typeof AuthenticatedRecruiterTemplatesRoute
@@ -333,6 +342,7 @@ export interface FileRoutesById {
   '/_authenticated/profile/$userId': typeof AuthenticatedProfileUserIdRoute
   '/_authenticated/recruiter_/audit': typeof AuthenticatedRecruiterAuditRoute
   '/_authenticated/recruiter_/company': typeof AuthenticatedRecruiterCompanyRoute
+  '/_authenticated/recruiter_/discover': typeof AuthenticatedRecruiterDiscoverRoute
   '/_authenticated/recruiter_/message-templates': typeof AuthenticatedRecruiterMessageTemplatesRoute
   '/_authenticated/recruiter_/question-bank': typeof AuthenticatedRecruiterQuestionBankRoute
   '/_authenticated/recruiter_/templates': typeof AuthenticatedRecruiterTemplatesRoute
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/profile/$userId'
     | '/recruiter/audit'
     | '/recruiter/company'
+    | '/recruiter/discover'
     | '/recruiter/message-templates'
     | '/recruiter/question-bank'
     | '/recruiter/templates'
@@ -407,6 +418,7 @@ export interface FileRouteTypes {
     | '/profile/$userId'
     | '/recruiter/audit'
     | '/recruiter/company'
+    | '/recruiter/discover'
     | '/recruiter/message-templates'
     | '/recruiter/question-bank'
     | '/recruiter/templates'
@@ -444,6 +456,7 @@ export interface FileRouteTypes {
     | '/_authenticated/profile/$userId'
     | '/_authenticated/recruiter_/audit'
     | '/_authenticated/recruiter_/company'
+    | '/_authenticated/recruiter_/discover'
     | '/_authenticated/recruiter_/message-templates'
     | '/_authenticated/recruiter_/question-bank'
     | '/_authenticated/recruiter_/templates'
@@ -578,6 +591,13 @@ declare module '@tanstack/react-router' {
       path: '/recruiter/message-templates'
       fullPath: '/recruiter/message-templates'
       preLoaderRoute: typeof AuthenticatedRecruiterMessageTemplatesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/recruiter_/discover': {
+      id: '/_authenticated/recruiter_/discover'
+      path: '/recruiter/discover'
+      fullPath: '/recruiter/discover'
+      preLoaderRoute: typeof AuthenticatedRecruiterDiscoverRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/recruiter_/company': {
@@ -791,6 +811,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProfileUserIdRoute: typeof AuthenticatedProfileUserIdRoute
   AuthenticatedRecruiterAuditRoute: typeof AuthenticatedRecruiterAuditRoute
   AuthenticatedRecruiterCompanyRoute: typeof AuthenticatedRecruiterCompanyRoute
+  AuthenticatedRecruiterDiscoverRoute: typeof AuthenticatedRecruiterDiscoverRoute
   AuthenticatedRecruiterMessageTemplatesRoute: typeof AuthenticatedRecruiterMessageTemplatesRoute
   AuthenticatedRecruiterQuestionBankRoute: typeof AuthenticatedRecruiterQuestionBankRoute
   AuthenticatedRecruiterTemplatesRoute: typeof AuthenticatedRecruiterTemplatesRoute
@@ -816,6 +837,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileUserIdRoute: AuthenticatedProfileUserIdRoute,
   AuthenticatedRecruiterAuditRoute: AuthenticatedRecruiterAuditRoute,
   AuthenticatedRecruiterCompanyRoute: AuthenticatedRecruiterCompanyRoute,
+  AuthenticatedRecruiterDiscoverRoute: AuthenticatedRecruiterDiscoverRoute,
   AuthenticatedRecruiterMessageTemplatesRoute:
     AuthenticatedRecruiterMessageTemplatesRoute,
   AuthenticatedRecruiterQuestionBankRoute:

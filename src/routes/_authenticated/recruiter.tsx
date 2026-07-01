@@ -4,7 +4,7 @@ import { db } from "@/integrations/firebase/client";
 import { collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
-import { ArrowRight, Building2, Briefcase, Users, Plus, Star, Activity, ListChecks, Database, FileText, Trash2 } from "lucide-react";
+import { ArrowRight, Building2, Briefcase, Users, Plus, Star, Activity, ListChecks, Database, FileText, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/recruiter")({
@@ -124,6 +124,9 @@ function RecruiterDashboard() {
                   <p className="mt-1 text-sm text-muted-foreground">Here's how your hiring pipeline is performing across all roles.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <Link to="/recruiter/discover" className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+                    <Search className="h-4 w-4" /> Talent Discovery
+                  </Link>
                   <Link to="/recruiter/templates" className="glass inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium hover:bg-secondary/80">
                     <ListChecks className="h-4 w-4" /> Message Templates
                   </Link>
