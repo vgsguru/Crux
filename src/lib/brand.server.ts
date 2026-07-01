@@ -4,15 +4,16 @@ import { z } from "zod";
 import { getAdminDb } from "@/integrations/firebase/admin";
 import { putImageToBlob } from "@/lib/blob.server";
 
-// Text→image via NVIDIA SD3. Returns a PNG buffer or null (caller falls back).
-async function nvidiaImage(prompt: string, aspect: string): Promise<Buffer | null> {
-  const key = process.env.NVIDIA_API_KEY;
+// Text→image via NVIDIA FLUX.1-dev (SD3 endpoint was removed). Returns a buffer or null.
+// flux.1-dev requires width/height from a fixed set (768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344).
+async function nvidiaImage(prompt: string, width: number, height: number): Promise<Buffer | null> {
+  const key = process.env.NVIDIA_FLUX_API_KEY || process.env.NVIDIA_API_KEY;
   if (!key) return null;
   try {
-    const res = await fetch("https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3-medium", {
+    const res = await fetch("https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, Accept: "application/json" },
-      body: JSON.stringify({ prompt: prompt.slice(0, 1500), cfg_scale: 5, aspect_ratio: aspect, seed: 0, steps: 40, negative_prompt: "lowres, blurry, distorted, ugly, watermark, extra text" }),
+      body: JSON.stringify({ prompt: prompt.slice(0, 1500), width, height, steps: 40, cfg_scale: 3.5, seed: 0 }),
     });
     if (!res.ok) { console.error("nvidia img", res.status, await res.text().catch(() => "")); return null; }
     const j: any = await res.json();
@@ -89,7 +90,7 @@ Colours: ${p.colours ?? ""}
 Graphic Styles: ${p.graphicStyles ?? ""}
 Avoid: ${p.avoid ?? ""}`;
 
-    const buf = await nvidiaImage(prompt, "1:1");
+    const buf = await nvidiaImage(prompt, 1024, 1024);
     if (!buf) throw new Error("Image generation is busy — please try again in a moment.");
 
     const url = await putImageToBlob(buf, `brand/${data.companyId}/identity-${Date.now()}.png`, "image/png");
@@ -121,7 +122,7 @@ Graphic Styles: ${data.graphicStyles ?? brand.graphicStyles ?? ""}
 Product in focus: ${data.productInFocus ?? ""}
 Professional, premium, high detail. Leave clean negative space in one corner.`;
 
-    let buf = await nvidiaImage(prompt, "4:3");
+    let buf = await nvidiaImage(prompt, 1024, 768);
     const sharp = (await import("sharp")).default;
     if (!buf) {
       const g = `<svg width="1024" height="768"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#312e81"/></linearGradient></defs><rect width="1024" height="768" fill="url(#g)"/></svg>`;
