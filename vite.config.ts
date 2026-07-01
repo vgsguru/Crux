@@ -39,6 +39,10 @@ export default defineConfig({
       preset: process.env.VERCEL ? "vercel" : "node-server",
       // AI image generation can take ~15–30s; raise the Vercel function limit above the 10s default.
       vercel: { functions: { maxDuration: 60 } },
+      // firebase-admin's transformed bundle drops its internal SDK_VERSION and crashes
+      // every server function on load. Full-package trace (`pkg*`) copies the WHOLE
+      // package (incl. package.json) so those internal references resolve.
+      traceDeps: ["firebase-admin*", "@firebase/*", "@google-cloud/firestore*", "@google-cloud/storage*", "google-gax*", "google-auth-library*"],
     }),
     viteReact(),
   ],
