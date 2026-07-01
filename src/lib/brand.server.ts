@@ -21,6 +21,39 @@ async function nvidiaImage(prompt: string, aspect: string): Promise<Buffer | nul
   } catch (e) { console.error("nvidia img err", e); return null; }
 }
 
+// Instruction-based image editing via FLUX.1 Kontext (NVIDIA). Uses NVIDIA's asset
+// flow: register → upload → reference as `data:image/jpeg;example_id,<id>`. Returns
+// the edited PNG buffer, or null on any failure (callers fall back gracefully).
+// NOTE: NVIDIA's kontext endpoint has been returning 500s during preview — the
+// fallback keeps posters working until it stabilises.
+async function fluxEditImage(imageBuffer: Buffer, prompt: string): Promise<Buffer | null> {
+  const key = process.env.NVIDIA_FLUX_API_KEY || process.env.NVIDIA_API_KEY;
+  if (!key) return null;
+  try {
+    const sharp = (await import("sharp")).default;
+    const jpeg = await sharp(imageBuffer).resize(1024, 1024, { fit: "cover" }).jpeg().toBuffer();
+    // 1. Register + 2. upload the input asset.
+    const reg = await fetch("https://api.nvcf.nvidia.com/v2/nvcf/assets", {
+      method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ contentType: "image/jpeg", description: "crux-edit" }),
+    });
+    if (!reg.ok) return null;
+    const rj: any = await reg.json();
+    const up = await fetch(rj.uploadUrl, { method: "PUT", headers: { "Content-Type": "image/jpeg", "x-amz-meta-nvcf-asset-description": "crux-edit" }, body: new Uint8Array(jpeg) });
+    if (!up.ok) return null;
+    // 3. Edit.
+    const res = await fetch("https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-kontext-dev", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json", "NVCF-INPUT-ASSET-REFERENCES": rj.assetId },
+      body: JSON.stringify({ prompt: prompt.slice(0, 900), image: `data:image/jpeg;example_id,${rj.assetId}`, width: 1024, height: 1024, steps: 30, cfg_scale: 3.5, seed: 0 }),
+    });
+    if (!res.ok) { console.error("flux kontext", res.status, (await res.text().catch(() => "")).slice(0, 120)); return null; }
+    const j: any = await res.json();
+    const b64 = j.image || j.artifacts?.[0]?.base64 || j.data?.[0]?.b64_json;
+    return b64 ? Buffer.from(b64, "base64") : null;
+  } catch (e) { console.error("flux edit err", e); return null; }
+}
+
 async function requireCompanyOwner(db: FirebaseFirestore.Firestore, companyId: string, uid: string) {
   const snap = await db.collection("companies").doc(companyId).get();
   if (!snap.exists || (snap.data() as any).owner_id !== uid) throw new Error("Forbidden");
@@ -105,5 +138,22 @@ Professional, premium, high detail. Leave clean negative space in one corner.`;
     const bucket = getStorage().bucket();
     const path = `brand-posters/${context.userId}/${Date.now()}.png`;
     await bucket.file(path).save(final, { metadata: { contentType: "image/png" }, public: true });
+    return { url: `https://storage.googleapis.com/${bucket.name}/${path}` };
+  });
+
+// Edit an existing poster/image with a text instruction via FLUX.1 Kontext.
+export const fluxEditPoster = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((i: unknown) => z.object({ imageUrl: z.string().url(), prompt: z.string().min(1).max(900) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const r = await fetch(data.imageUrl);
+    if (!r.ok) throw new Error("Couldn't load that image");
+    const edited = await fluxEditImage(Buffer.from(await r.arrayBuffer()), data.prompt);
+    if (!edited) throw new Error("FLUX edit is unavailable right now (NVIDIA endpoint error) — please try again later.");
+    const sharp = (await import("sharp")).default;
+    const png = await sharp(edited).png().toBuffer();
+    const bucket = getStorage().bucket();
+    const path = `brand-posters/${context.userId}/edit-${Date.now()}.png`;
+    await bucket.file(path).save(png, { metadata: { contentType: "image/png" }, public: true });
     return { url: `https://storage.googleapis.com/${bucket.name}/${path}` };
   });

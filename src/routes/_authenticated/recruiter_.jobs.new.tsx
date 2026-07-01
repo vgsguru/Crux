@@ -12,7 +12,7 @@ import { Plus, Trash2, Loader2, ImagePlus, Video, Sparkles, X } from "lucide-rea
 import { generateJobOgImage, generateJobDescription, generateJobQuestions } from "@/lib/ai.server";
 import { embedJob } from "@/lib/match.server";
 import { notifyFollowers, notifyMatchingApplicants } from "@/lib/applications.server";
-import { generateBrandPoster } from "@/lib/brand.server";
+import { generateBrandPoster, fluxEditPoster } from "@/lib/brand.server";
 import { screenJobPost } from "@/lib/moderation";
 
 export const Route = createFileRoute("/_authenticated/recruiter_/jobs/new")({
@@ -65,6 +65,19 @@ function NewJob() {
   const [showBrand, setShowBrand] = useState(false);
   const [genBrand, setGenBrand] = useState(false);
   const [brandPoster, setBrandPoster] = useState({ targetAge: "", feel: "", inspiredFrom: "", graphicStyles: "", productInFocus: "" });
+  const fluxEditFn = useServerFn(fluxEditPoster);
+  const [fluxBusy, setFluxBusy] = useState(false);
+  async function fluxEditNow() {
+    if (!poster) return;
+    const instruction = window.prompt("Describe the edit (FLUX image edit):", "make it more premium and cinematic, add a subtle 'crux' watermark in the bottom-right corner");
+    if (!instruction) return;
+    setFluxBusy(true);
+    try {
+      const res: any = await fluxEditFn({ data: { imageUrl: poster, prompt: instruction } });
+      if (res?.url) { setPoster(res.url); toast.success("Edited with FLUX"); }
+    } catch (e: any) { toast.error(e?.message ?? "FLUX edit failed"); }
+    finally { setFluxBusy(false); }
+  }
   async function generateOnBrandPoster() {
     if (!company) { toast.error("Create your company first"); return; }
     setGenBrand(true);
@@ -327,6 +340,9 @@ function NewJob() {
                     <img src={poster} alt="AI poster" className="aspect-video w-full rounded-2xl object-cover" />
                     <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">AI poster</span>
                     <button type="button" onClick={() => setPoster("")} className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white"><X className="h-3 w-3" /></button>
+                    <button type="button" onClick={fluxEditNow} disabled={fluxBusy} className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-black/85 disabled:opacity-60">
+                      {fluxBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} FLUX edit
+                    </button>
                   </div>
                 )}
                 {media.map((u, i) => (
