@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { db, storage } from "@/integrations/firebase/client";
 import { collection, doc, getDoc, getDocs, addDoc, query, where, orderBy, limit, startAfter } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
 import { PostCard, PostCardSkeleton, type FeedPost } from "@/components/feed/PostCard";
@@ -459,10 +459,7 @@ function ShowcaseComposer({ onPosted }: { onPosted: () => void }) {
     if (file.size > 8 * 1024 * 1024) { toast.error("Max 8 MB"); return; }
     setUploading(true);
     try {
-      const path = `${user.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
-      const storageRef = ref(storage, `showcase-media/${path}`);
-      await uploadBytes(storageRef, file, { contentType: file.type });
-      const signedUrl = await getDownloadURL(storageRef);
+      const signedUrl = await uploadToBlob(file, `showcase-media/${user.id}`);
       setMedia((m) => [...m, signedUrl]);
     } catch (error: any) {
       toast.error(error.message);

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { db, storage } from "@/integrations/firebase/client";
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, query, where } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
 import { parseResume, transcribeIntro, startInterview } from "@/lib/ai.server";
@@ -150,14 +150,11 @@ function ResumeStep({ ensureApplicationId, parseFn, embedFn, onDone, userId, bus
     setBusy(true);
     try {
       const applicationId = await ensureApplicationId();
-      const path = `${userId}/${applicationId}-${Date.now()}-${file.name}`;
-      const storageRef = ref(storage, `resumes/${path}`);
       toast("Reading resume…");
       const text = await extractPdfText(file);
       if (!text || text.length < 30) throw new Error("Couldn't read text from this PDF — is it a scanned image?");
       toast("Uploading resume…");
-      await uploadBytes(storageRef, file, { contentType: file.type || "application/pdf" });
-      const signedUrl = await getDownloadURL(storageRef);
+      const signedUrl = await uploadToBlob(file, `resumes/${userId}`);
       await updateDoc(doc(db, "applications", applicationId), { resume_url: signedUrl });
       toast("Parsing resume…");
       const res = await parseFn({ data: { applicationId, resumeText: text } });
@@ -348,10 +345,7 @@ function VideoStep({ applicationId, transcribeFn, onDone, userId }: { applicatio
     if (!recorded) return;
     setBusy(true);
     try {
-      const path = `${userId}/${applicationId}-${Date.now()}.webm`;
-      const storageRef = ref(storage, `intro-videos/${path}`);
-      await uploadBytes(storageRef, recorded, { contentType: recorded.type });
-      const signedUrl = await getDownloadURL(storageRef);
+      const signedUrl = await uploadToBlob(recorded, `intro-videos/${userId}`, "intro.webm");
       await updateDoc(doc(db, "applications", applicationId), { intro_video_url: signedUrl });
       toast("Transcribing your pitch…");
       const b64 = await fileToBase64(recorded);

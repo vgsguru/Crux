@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware.server";
 import { z } from "zod";
 import { getAdminDb, getAdminAuth } from '@/integrations/firebase/admin';
-import { getStorage } from "firebase-admin/storage";
+import { putImageToBlob } from "@/lib/blob.server";
 import { groqChat, geminiChat, chatterboxTts, extractJson, redactPII, sendEmail, GROQ_CHAT_MODEL } from '@/lib/ai-providers.server';
 
 export const parseResume = createServerFn({ method: "POST" })
@@ -405,20 +405,11 @@ export const generateJobOgImage = createServerFn({ method: "POST" })
       console.error("Sharp compositing failed, using original background", e);
     }
 
-    // 4. Save to Firebase Storage
-    const adminStorage = getStorage();
-    const bucket = adminStorage.bucket();
+    // 4. Save to Vercel Blob (free storage).
     const path = data.jobId
-      ? `jobs/${data.jobId}/poster.png`
+      ? `jobs/${data.jobId}/poster-${Date.now()}.png`
       : `og-previews/${context.userId}/${Date.now()}.png`;
-    const destFile = bucket.file(path);
-
-    await destFile.save(finalBuffer, {
-      metadata: { contentType: 'image/png' },
-      public: true,
-    });
-
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${path}`;
+    const publicUrl = await putImageToBlob(finalBuffer, path, "image/png");
     if (data.jobId) await db.collection("jobs").doc(data.jobId).update({ og_image_url: publicUrl });
 
     return { url: publicUrl };

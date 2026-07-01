@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { db, storage } from "@/integrations/firebase/client";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/use-auth";
 import { claimUsername } from "@/lib/username";
@@ -123,12 +123,8 @@ function EditProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setUploadingAvatar(true);
-    const ext = file.name.split(".").pop();
-    const path = `avatars/${user.id}/${Date.now()}-avatar.${ext}`;
     try {
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const url = await uploadToBlob(file, `avatars/${user.id}`);
       setAvatarUrl(url);
     } catch (error: any) {
       toast.error(error.message);
@@ -141,11 +137,8 @@ function EditProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setUploadingResume(true);
-    const path = `resumes/${user.id}/${Date.now()}-${file.name}`;
     try {
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const url = await uploadToBlob(file, `resumes/${user.id}`);
       setResumeUrl(url);
       setResumeFilename(file.name);
     } catch (error: any) {
@@ -156,10 +149,7 @@ function EditProfilePage() {
   }
 
   async function uploadImageFile(file: File, folder: string): Promise<string> {
-    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const r = ref(storage, `${folder}/${user!.id}/${Date.now()}-${safe}`);
-    await uploadBytes(r, file, { contentType: file.type || "image/png" });
-    return getDownloadURL(r);
+    return uploadToBlob(file, `${folder}/${user!.id}`);
   }
 
   async function setCertImage(index: number, file: File) {

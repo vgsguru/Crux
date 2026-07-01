@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { db, storage } from "@/integrations/firebase/client";
 import { collection, query, where, getDocs, addDoc, getDoc, doc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
 import { toast } from "sonner";
@@ -61,6 +61,34 @@ function NewJob() {
   const [poster, setPoster] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [genningPoster, setGenningPoster] = useState(false);
+
+  // Draft autosave — lets a recruiter close mid-post and continue later.
+  const DRAFT_KEY = "crux_job_draft";
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d.title && !d.description) return;
+      setTitle(d.title ?? ""); setDescription(d.description ?? ""); setIdeal(d.ideal ?? "");
+      setLocation(d.location ?? ""); setEmploymentType(d.employmentType ?? "full_time");
+      setInterviewMode(d.interviewMode ?? "async"); setInterviewFocus(d.interviewFocus ?? "");
+      setSalary(d.salary ?? ""); setQuestionStyle(d.questionStyle ?? "balanced");
+      if (Array.isArray(d.questions) && d.questions.length) setQuestions(d.questions);
+      if (d.rubric) setRubric(d.rubric);
+      toast.message("Draft restored — continuing where you left off", {
+        action: { label: "Discard", onClick: () => { localStorage.removeItem(DRAFT_KEY); window.location.reload(); } },
+      });
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!title.trim() && !description.trim()) return; // don't save an empty draft
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, description, ideal, location, employmentType, interviewMode, interviewFocus, salary, questionStyle, questions, rubric }));
+    } catch { /* ignore */ }
+  }, [title, description, ideal, location, employmentType, interviewMode, interviewFocus, salary, questionStyle, questions, rubric]);
+
   const genBrandFn = useServerFn(generateBrandPoster);
   const [showBrand, setShowBrand] = useState(false);
   const [genBrand, setGenBrand] = useState(false);
@@ -90,10 +118,7 @@ function NewJob() {
   }
 
   async function uploadFile(file: File, folder: string) {
-    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const r = ref(storage, `${folder}/${user!.id}/${Date.now()}-${safe}`);
-    await uploadBytes(r, file, { contentType: file.type || "application/octet-stream" });
-    return getDownloadURL(r);
+    return uploadToBlob(file, `${folder}/${user!.id}`);
   }
 
   async function addImages(files: FileList) {
@@ -215,6 +240,7 @@ function NewJob() {
       embed({ data: { jobId: data.id } })
         .then(() => { if (!held) return notifyMatchesFn({ data: { jobId: data.id } }); })
         .catch(() => {});
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       navigate({ to: "/recruiter/jobs/$jobId", params: { jobId: data.id } });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create");

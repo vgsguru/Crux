@@ -20,6 +20,7 @@ import { Route as AuthenticatedRecruiterRouteImport } from './routes/_authentica
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as ApiBlobUploadRouteImport } from './routes/api/blob.upload'
 import { Route as AuthenticatedRecruiterTemplatesRouteImport } from './routes/_authenticated/recruiter_.templates'
 import { Route as AuthenticatedRecruiterQuestionBankRouteImport } from './routes/_authenticated/recruiter_.question-bank'
 import { Route as AuthenticatedRecruiterMessageTemplatesRouteImport } from './routes/_authenticated/recruiter_.message-templates'
@@ -97,6 +98,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiBlobUploadRoute = ApiBlobUploadRouteImport.update({
+  id: '/api/blob/upload',
+  path: '/api/blob/upload',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRecruiterTemplatesRoute =
   AuthenticatedRecruiterTemplatesRouteImport.update({
@@ -256,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/recruiter/message-templates': typeof AuthenticatedRecruiterMessageTemplatesRoute
   '/recruiter/question-bank': typeof AuthenticatedRecruiterQuestionBankRoute
   '/recruiter/templates': typeof AuthenticatedRecruiterTemplatesRoute
+  '/api/blob/upload': typeof ApiBlobUploadRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/apply/$jobId/interview': typeof AuthenticatedApplyJobIdInterviewRoute
   '/apply/$jobId/tech-check': typeof AuthenticatedApplyJobIdTechCheckRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/recruiter/message-templates': typeof AuthenticatedRecruiterMessageTemplatesRoute
   '/recruiter/question-bank': typeof AuthenticatedRecruiterQuestionBankRoute
   '/recruiter/templates': typeof AuthenticatedRecruiterTemplatesRoute
+  '/api/blob/upload': typeof ApiBlobUploadRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/apply/$jobId/interview': typeof AuthenticatedApplyJobIdInterviewRoute
   '/apply/$jobId/tech-check': typeof AuthenticatedApplyJobIdTechCheckRoute
@@ -328,6 +336,7 @@ export interface FileRoutesById {
   '/_authenticated/recruiter_/message-templates': typeof AuthenticatedRecruiterMessageTemplatesRoute
   '/_authenticated/recruiter_/question-bank': typeof AuthenticatedRecruiterQuestionBankRoute
   '/_authenticated/recruiter_/templates': typeof AuthenticatedRecruiterTemplatesRoute
+  '/api/blob/upload': typeof ApiBlobUploadRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/apply/$jobId/interview': typeof AuthenticatedApplyJobIdInterviewRoute
   '/_authenticated/apply/$jobId/tech-check': typeof AuthenticatedApplyJobIdTechCheckRoute
@@ -365,6 +374,7 @@ export interface FileRouteTypes {
     | '/recruiter/message-templates'
     | '/recruiter/question-bank'
     | '/recruiter/templates'
+    | '/api/blob/upload'
     | '/admin/'
     | '/apply/$jobId/interview'
     | '/apply/$jobId/tech-check'
@@ -400,6 +410,7 @@ export interface FileRouteTypes {
     | '/recruiter/message-templates'
     | '/recruiter/question-bank'
     | '/recruiter/templates'
+    | '/api/blob/upload'
     | '/admin'
     | '/apply/$jobId/interview'
     | '/apply/$jobId/tech-check'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/_authenticated/recruiter_/message-templates'
     | '/_authenticated/recruiter_/question-bank'
     | '/_authenticated/recruiter_/templates'
+    | '/api/blob/upload'
     | '/_authenticated/admin/'
     | '/_authenticated/apply/$jobId/interview'
     | '/_authenticated/apply/$jobId/tech-check'
@@ -457,6 +469,7 @@ export interface RootRouteChildren {
   CompanyCompanyIdRoute: typeof CompanyCompanyIdRoute
   JobsJobIdRoute: typeof JobsJobIdRoute
   JobsIndexRoute: typeof JobsIndexRoute
+  ApiBlobUploadRoute: typeof ApiBlobUploadRoute
   ApiPublicOgJobsFileRoute: typeof ApiPublicOgJobsFileRoute
 }
 
@@ -538,6 +551,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/blob/upload': {
+      id: '/api/blob/upload'
+      path: '/api/blob/upload'
+      fullPath: '/api/blob/upload'
+      preLoaderRoute: typeof ApiBlobUploadRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/recruiter_/templates': {
       id: '/_authenticated/recruiter_/templates'
@@ -820,6 +840,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompanyCompanyIdRoute: CompanyCompanyIdRoute,
   JobsJobIdRoute: JobsJobIdRoute,
   JobsIndexRoute: JobsIndexRoute,
+  ApiBlobUploadRoute: ApiBlobUploadRoute,
   ApiPublicOgJobsFileRoute: ApiPublicOgJobsFileRoute,
 }
 export const routeTree = rootRouteImport

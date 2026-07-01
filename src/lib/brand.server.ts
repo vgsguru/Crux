@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware.server";
 import { z } from "zod";
 import { getAdminDb } from "@/integrations/firebase/admin";
-import { getStorage } from "firebase-admin/storage";
+import { putImageToBlob } from "@/lib/blob.server";
 
 // Text→image via NVIDIA SD3. Returns a PNG buffer or null (caller falls back).
 async function nvidiaImage(prompt: string, aspect: string): Promise<Buffer | null> {
@@ -92,10 +92,7 @@ Avoid: ${p.avoid ?? ""}`;
     const buf = await nvidiaImage(prompt, "1:1");
     if (!buf) throw new Error("Image generation is busy — please try again in a moment.");
 
-    const bucket = getStorage().bucket();
-    const path = `brand/${data.companyId}/identity-${Date.now()}.png`;
-    await bucket.file(path).save(buf, { metadata: { contentType: "image/png" }, public: true });
-    const url = `https://storage.googleapis.com/${bucket.name}/${path}`;
+    const url = await putImageToBlob(buf, `brand/${data.companyId}/identity-${Date.now()}.png`, "image/png");
     await db.collection("companies").doc(data.companyId).update({ brand_identity_url: url, brand_params: p, brand_updated_at: new Date().toISOString() });
     return { url };
   });
@@ -135,10 +132,8 @@ Professional, premium, high detail. Leave clean negative space in one corner.`;
     const mark = Buffer.from(`<svg width="1024" height="768"><text x="1000" y="744" text-anchor="end" font-family="sans-serif" font-weight="700" font-size="26" fill="#ffffff" fill-opacity="0.82">crux</text></svg>`);
     const final = await img.composite([{ input: mark, blend: "over" }]).png().toBuffer();
 
-    const bucket = getStorage().bucket();
-    const path = `brand-posters/${context.userId}/${Date.now()}.png`;
-    await bucket.file(path).save(final, { metadata: { contentType: "image/png" }, public: true });
-    return { url: `https://storage.googleapis.com/${bucket.name}/${path}` };
+    const url = await putImageToBlob(final, `brand-posters/${context.userId}/${Date.now()}.png`, "image/png");
+    return { url };
   });
 
 // Edit an existing poster/image with a text instruction via FLUX.1 Kontext.
@@ -152,8 +147,6 @@ export const fluxEditPoster = createServerFn({ method: "POST" })
     if (!edited) throw new Error("FLUX edit is unavailable right now (NVIDIA endpoint error) — please try again later.");
     const sharp = (await import("sharp")).default;
     const png = await sharp(edited).png().toBuffer();
-    const bucket = getStorage().bucket();
-    const path = `brand-posters/${context.userId}/edit-${Date.now()}.png`;
-    await bucket.file(path).save(png, { metadata: { contentType: "image/png" }, public: true });
-    return { url: `https://storage.googleapis.com/${bucket.name}/${path}` };
+    const url = await putImageToBlob(png, `brand-posters/${context.userId}/edit-${Date.now()}.png`, "image/png");
+    return { url };
   });

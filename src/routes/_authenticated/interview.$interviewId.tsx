@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { storage } from "@/integrations/firebase/client";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 import { useAuth } from "@/hooks/use-auth";
 import { finishInterview, generateSpeech } from "@/lib/ai.server";
 import { toast } from "sonner";
@@ -196,12 +196,9 @@ function InterviewRoom() {
       recRef.current?.stop();
       await new Promise((r) => setTimeout(r, 500));
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
-      const path = `${user!.id}/${interviewId}-${Date.now()}.webm`;
-      const storageRef = ref(storage, `interview-videos/${path}`);
       let videoUrl: string | undefined;
       try {
-        await uploadBytes(storageRef, blob, { contentType: blob.type });
-        videoUrl = await getDownloadURL(storageRef);
+        videoUrl = await uploadToBlob(blob, `interview-videos/${user!.id}`, `${interviewId}.webm`);
       } catch (upErr) {
         console.error("Upload failed", upErr);
       }

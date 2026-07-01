@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { db, storage } from "@/integrations/firebase/client";
 import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
 import { startAsyncInterview, saveAsyncAnswer, finalizeAsyncInterview, transcribeAnswer } from "@/lib/async-interview.server";
@@ -113,10 +113,7 @@ function AsyncInterview() {
       });
       setIntroRec(false);
       if (elapsed < 18) { toast.error("Your intro must be at least ~20 seconds"); setIntroBusy(false); return; }
-      const path = `${user.id}/${appId}/intro-${Date.now()}.webm`;
-      const sref = ref(storage, `interview-videos/${path}`);
-      await uploadBytes(sref, blob, { contentType: "video/webm" });
-      const url = await getDownloadURL(sref);
+      const url = await uploadToBlob(blob, `interview-videos/${user.id}/${appId}`, "intro.webm");
       await saveIntroFn({ data: { applicationId: appId, url } });
       setIntroUrl(url);
       toast.success("Intro saved — let's begin");
@@ -167,12 +164,10 @@ function AsyncInterview() {
     setBusy(true);
     try {
       const blob = await stopRec();
-      const path = `${user.id}/${appId}/q${index}-${Date.now()}.webm`;
-      const storageRef = ref(storage, `interview-videos/${path}`);
-      await uploadBytes(storageRef, blob, { contentType: "video/webm" });
+      const url = await uploadToBlob(blob, `interview-videos/${user.id}/${appId}`, `q${index}.webm`);
       toast("Transcribing answer…");
       const transcript = await transcribeBlob(blob);
-      await saveFn({ data: { interviewId, index, videoPath: path, transcript } });
+      await saveFn({ data: { interviewId, index, videoPath: url, transcript } });
       const nextDone = [...done]; nextDone[index] = true; setDone(nextDone);
       const nextT = [...transcripts]; nextT[index] = transcript; setTranscripts(nextT);
       toast.success("Answer saved");

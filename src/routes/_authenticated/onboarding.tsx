@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Briefcase, UploadCloud, User, Loader2, ArrowRight } from "lucide-react";
 import { assignRecruiterRoleOnSignup } from "@/lib/ai.server";
 import { storage } from "@/integrations/firebase/client";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { uploadToBlob } from "@/lib/upload";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   component: OnboardingPage,
@@ -70,10 +70,8 @@ function OnboardingPage() {
     setBusy(true);
     toast("Uploading and parsing resume...");
     try {
-      // 1. Upload to storage
-      const storageRef = ref(storage, `resumes/${user.id}/${file.name}`);
-      await uploadBytes(storageRef, file, { contentType: file.type });
-      await getDownloadURL(storageRef);
+      // 1. Upload to Vercel Blob
+      await uploadToBlob(file, `resumes/${user.id}`);
 
       // 2. Extract text in the browser, then parse with AI.
       const resumeText = await extractPdfText(file);
