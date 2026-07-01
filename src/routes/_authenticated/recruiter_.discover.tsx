@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { SiteNav } from "@/components/site-nav";
-import { rankCandidates, toSubmissionCsv, type Requirement, type Ranked } from "@/lib/candidate-rank";
-import { Upload, Search, Sparkles, Download, ArrowLeft, ChevronDown, Loader2, Users, MapPin, Star } from "lucide-react";
+import { rankCandidates, toSubmissionCsv, toCompact, mergeDeepScores, type Requirement, type Ranked } from "@/lib/candidate-rank";
+import { deepRankCandidates } from "@/lib/candidate-rank.server";
+import { Upload, Search, Sparkles, Download, ArrowLeft, ChevronDown, Loader2, Users, MapPin, Star, Brain } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/recruiter_/discover")({
@@ -15,9 +17,12 @@ function Discover() {
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [ranking, setRanking] = useState(false);
+  const [deepRanking, setDeepRanking] = useState(false);
+  const [aiRanked, setAiRanked] = useState(false);
   const [ranked, setRanked] = useState<Ranked[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [showN, setShowN] = useState(20);
+  const deepRankFn = useServerFn(deepRankCandidates);
 
   const [role, setRole] = useState("");
   const [skills, setSkills] = useState("");
@@ -49,26 +54,49 @@ function Discover() {
     } finally { setLoading(false); }
   }
 
+  function buildReq(): Requirement {
+    return {
+      role: role.trim(),
+      skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+      minYoe: Number(minYoe) || 0,
+      location: location.trim() || undefined,
+      workMode: workMode || undefined,
+      keywords: keywords.trim() || undefined,
+    };
+  }
+  function validate() {
+    if (!candidates.length) { toast.error("Upload a candidate dataset first"); return false; }
+    if (!role.trim() && !skills.trim()) { toast.error("Add a role or required skills"); return false; }
+    return true;
+  }
+
+  // Stage 1 only — instant, in-browser, private.
   function runRank() {
-    if (!candidates.length) { toast.error("Upload a candidate dataset first"); return; }
-    if (!role.trim() && !skills.trim()) { toast.error("Add a role or required skills"); return; }
+    if (!validate()) return;
     setRanking(true);
-    // Defer so the spinner can paint before the (synchronous) scoring runs.
     setTimeout(() => {
-      try {
-        const req: Requirement = {
-          role: role.trim(),
-          skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
-          minYoe: Number(minYoe) || 0,
-          location: location.trim() || undefined,
-          workMode: workMode || undefined,
-          keywords: keywords.trim() || undefined,
-        };
-        setRanked(rankCandidates(candidates, req, 100));
-        setShowN(20);
-      } catch { toast.error("Ranking failed"); }
+      try { setRanked(rankCandidates(candidates, buildReq(), 100)); setShowN(20); setAiRanked(false); }
+      catch { toast.error("Ranking failed"); }
       finally { setRanking(false); }
     }, 30);
+  }
+
+  // Hybrid pipeline: stage-1 recall (top 150) → LLM understands the role & re-ranks with reasons.
+  async function deepRank() {
+    if (!validate()) return;
+    setDeepRanking(true);
+    try {
+      const req = buildReq();
+      const stage1 = rankCandidates(candidates, req, 150);
+      const compact = stage1.map((r) => toCompact(r.candidate));
+      const res = await deepRankFn({ data: { role: req.role, skills: req.skills, minYoe: req.minYoe, keywords: req.keywords, candidates: compact } }) as { scores: Array<{ id: string; score: number; reason: string }> };
+      setRanked(mergeDeepScores(stage1, res.scores ?? [], 100));
+      setShowN(20);
+      setAiRanked(true);
+      toast.success("AI-ranked shortlist ready");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Deep rank failed");
+    } finally { setDeepRanking(false); }
   }
 
   function exportCsv() {
@@ -114,9 +142,15 @@ function Discover() {
               <Field label="Location (optional)"><input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Bengaluru" className="inp" /></Field>
               <Field label="Extra context (optional)"><input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="fintech, startup, gen-ai" className="inp" /></Field>
             </div>
-            <button onClick={runRank} disabled={ranking || !candidates.length} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
-              {ranking ? <><Loader2 className="h-4 w-4 animate-spin" /> Ranking {candidates.length.toLocaleString()}…</> : <><Sparkles className="h-4 w-4" /> Rank candidates</>}
-            </button>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button onClick={runRank} disabled={ranking || deepRanking || !candidates.length} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-secondary px-4 py-3 text-sm font-medium hover:bg-secondary/70 disabled:opacity-50">
+                {ranking ? <><Loader2 className="h-4 w-4 animate-spin" /> Ranking…</> : <><Sparkles className="h-4 w-4" /> Instant rank</>}
+              </button>
+              <button onClick={deepRank} disabled={ranking || deepRanking || !candidates.length} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+                {deepRanking ? <><Loader2 className="h-4 w-4 animate-spin" /> AI understanding role…</> : <><Brain className="h-4 w-4" /> Deep AI rank</>}
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">Instant = in-browser signals. Deep AI = the model reads the role's real intent and re-ranks the shortlist with reasons (~20–40s).</p>
           </div>
         </div>
 
@@ -124,7 +158,7 @@ function Discover() {
         {ranked.length > 0 && (
           <div className="mt-8">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-xl font-semibold">Top matches <span className="text-sm font-normal text-muted-foreground">({ranked.length} ranked)</span></h2>
+              <h2 className="flex items-center gap-2 font-display text-xl font-semibold">Top matches <span className="text-sm font-normal text-muted-foreground">({ranked.length} ranked)</span>{aiRanked && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"><Brain className="h-3 w-3" /> AI-ranked</span>}</h2>
               <button onClick={exportCsv} className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-4 py-2 text-sm font-medium hover:bg-secondary/70"><Download className="h-4 w-4" /> Export top 100 CSV</button>
             </div>
             <div className="space-y-2">

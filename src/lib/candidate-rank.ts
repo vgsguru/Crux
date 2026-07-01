@@ -118,6 +118,49 @@ export function rankCandidates(candidates: any[], req: Requirement, topN = 100):
   return scored.slice(0, topN);
 }
 
+// Compact candidate profile for the LLM re-rank stage (only what matters, small tokens).
+export function toCompact(c: any) {
+  const s = c.redrob_signals || {};
+  const topAssess = Object.entries(s.skill_assessment_scores || {})
+    .sort((a: any, b: any) => b[1] - a[1]).slice(0, 5)
+    .map(([k, v]) => `${k}:${Math.round(v as number)}`);
+  return {
+    id: c.candidate_id,
+    title: c.profile?.current_title,
+    yoe: c.profile?.years_of_experience,
+    company: c.profile?.current_company,
+    industry: c.profile?.current_industry,
+    location: c.profile?.location,
+    education: c.education?.[0] ? `${c.education[0].degree} ${c.education[0].field_of_study} (${c.education[0].tier})` : undefined,
+    recent_roles: (c.career_history || []).slice(0, 3).map((h: any) => `${h.title} @ ${h.company} (${h.duration_months}mo)`),
+    skills: (c.skills || []).slice(0, 14).map((x: any) => `${x.name}(${x.proficiency})`),
+    summary: (c.profile?.summary || "").slice(0, 260),
+    signals: {
+      response_rate: s.recruiter_response_rate,
+      interview_completion: s.interview_completion_rate,
+      offer_acceptance: s.offer_acceptance_rate,
+      profile_completeness: s.profile_completeness_score,
+      github: s.github_activity_score,
+      open_to_work: s.open_to_work_flag,
+      assessments: topAssess,
+    },
+  };
+}
+
+// Merge the LLM re-rank scores (0-100) back over the stage-1 ranked list and re-sort.
+export function mergeDeepScores(stage1: Ranked[], llm: Array<{ id: string; score: number; reason: string }>, topN = 100): Ranked[] {
+  const map = new Map(llm.map((x) => [x.id, x]));
+  return stage1
+    .map((r) => {
+      const l = map.get(r.candidate.candidate_id);
+      if (!l) return r;
+      const llmScore = clamp(l.score / 100);
+      return { ...r, score: clamp(0.3 * r.score + 0.7 * llmScore), reason: l.reason || r.reason };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN);
+}
+
 // Competition-format CSV: candidate_id,rank,score,reasoning
 export function toSubmissionCsv(ranked: Ranked[]): string {
   const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
