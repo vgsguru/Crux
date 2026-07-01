@@ -3,24 +3,7 @@ import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware.ser
 import { z } from "zod";
 import { getAdminDb } from "@/integrations/firebase/admin";
 import { putImageToBlob } from "@/lib/blob.server";
-
-// Text→image via NVIDIA FLUX.1-dev (SD3 endpoint was removed). Returns a buffer or null.
-// flux.1-dev requires width/height from a fixed set (768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344).
-async function nvidiaImage(prompt: string, width: number, height: number): Promise<Buffer | null> {
-  const key = process.env.NVIDIA_FLUX_API_KEY || process.env.NVIDIA_API_KEY;
-  if (!key) return null;
-  try {
-    const res = await fetch("https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, Accept: "application/json" },
-      body: JSON.stringify({ prompt: prompt.slice(0, 1500), width, height, steps: 40, cfg_scale: 3.5, seed: 0 }),
-    });
-    if (!res.ok) { console.error("nvidia img", res.status, await res.text().catch(() => "")); return null; }
-    const j: any = await res.json();
-    const b64 = j.image || j.artifacts?.[0]?.base64 || j.data?.[0]?.b64_json;
-    return b64 ? Buffer.from(b64, "base64") : null;
-  } catch (e) { console.error("nvidia img err", e); return null; }
-}
+import { generateImage } from "@/lib/image-gen.server";
 
 async function requireCompanyOwner(db: FirebaseFirestore.Firestore, companyId: string, uid: string) {
   const snap = await db.collection("companies").doc(companyId).get();
@@ -57,7 +40,7 @@ Colours: ${p.colours ?? ""}
 Graphic Styles: ${p.graphicStyles ?? ""}
 Avoid: ${p.avoid ?? ""}`;
 
-    const buf = await nvidiaImage(prompt, 1024, 1024);
+    const buf = await generateImage(prompt, 1024, 1024);
     if (!buf) throw new Error("Image generation is busy — please try again in a moment.");
 
     const url = await putImageToBlob(buf, `brand/${data.companyId}/identity-${Date.now()}.png`, "image/png");
@@ -70,6 +53,8 @@ export const generateBrandPoster = createServerFn({ method: "POST" })
   .middleware([requireFirebaseAuth])
   .inputValidator((i: unknown) => z.object({
     companyId: z.string(),
+    jobTitle: z.string().optional(),
+    jobDescription: z.string().optional(),
     targetAge: z.string().optional(),
     feel: z.string().optional(),
     inspiredFrom: z.string().optional(),
@@ -80,16 +65,17 @@ export const generateBrandPoster = createServerFn({ method: "POST" })
     const db = await getAdminDb();
     const company = await requireCompanyOwner(db, data.companyId, context.userId);
     const brand = company.brand_params ?? {};
-    const prompt = `Using this brand guideline as reference, create a scroll-stopping social media creative poster, cohesive with the brand identity.
-Brand: ${brand.brandName ?? company.name ?? ""}. Brand feel: ${brand.feel ?? ""}. Brand colours: ${brand.colours ?? ""}.
+    const prompt = `Design a scroll-stopping "we're hiring" social media poster for a ${data.jobTitle ?? "job"} role at ${brand.brandName ?? company.name ?? "the company"}, cohesive with the brand's identity.
+Role: ${data.jobTitle ?? ""}. About the role: ${(data.jobDescription ?? "").slice(0, 300)}
+Brand feel: ${brand.feel ?? ""}. Brand colours: ${brand.colours ?? ""}.
 Target Age Group: ${data.targetAge ?? ""}
 Creative Feel: ${data.feel ?? ""}
 Inspired from: ${data.inspiredFrom ?? ""}
 Graphic Styles: ${data.graphicStyles ?? brand.graphicStyles ?? ""}
-Product in focus: ${data.productInFocus ?? ""}
-Professional, premium, high detail. Leave clean negative space in one corner.`;
+Product/subject in focus: ${data.productInFocus || data.jobTitle || "the role"}
+Professional, premium, high detail. Include a bold "We're hiring: ${data.jobTitle ?? ""}" style headline. Leave clean negative space in one corner.`;
 
-    let buf = await nvidiaImage(prompt, 1024, 768);
+    let buf = await generateImage(prompt, 1024, 768);
     const sharp = (await import("sharp")).default;
     if (!buf) {
       const g = `<svg width="1024" height="768"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#312e81"/></linearGradient></defs><rect width="1024" height="768" fill="url(#g)"/></svg>`;

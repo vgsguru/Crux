@@ -97,7 +97,7 @@ function NewJob() {
     if (!company) { toast.error("Create your company first"); return; }
     setGenBrand(true);
     try {
-      const res: any = await genBrandFn({ data: { companyId: company.id, ...brandPoster } });
+      const res: any = await genBrandFn({ data: { companyId: company.id, jobTitle: title, jobDescription: description, ...brandPoster } });
       if (res?.url) { setPoster(res.url); setShowBrand(false); toast.success("On-brand poster generated"); }
       else toast.error("No image returned");
     } catch (e: any) { toast.error(e?.message ?? "Failed"); }

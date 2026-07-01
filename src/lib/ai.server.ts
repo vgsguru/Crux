@@ -3,6 +3,7 @@ import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware.ser
 import { z } from "zod";
 import { getAdminDb, getAdminAuth } from '@/integrations/firebase/admin';
 import { putImageToBlob } from "@/lib/blob.server";
+import { generateImage } from "@/lib/image-gen.server";
 import { groqChat, geminiChat, chatterboxTts, extractJson, redactPII, sendEmail, GROQ_CHAT_MODEL } from '@/lib/ai-providers.server';
 
 export const parseResume = createServerFn({ method: "POST" })
@@ -326,27 +327,9 @@ export const generateJobOgImage = createServerFn({ method: "POST" })
     }
     if (!title) throw new Error("A job title is required to generate a poster");
 
-    // 1. Background image via NVIDIA FLUX.1-dev (SD3 endpoint was removed by NVIDIA);
-    //    fall back to a clean gradient so the poster always generates.
+    // 1. Background image via Gemini (→ Pollinations fallback); gradient if both fail.
     const prompt = `A stunning, professional, ultra-modern abstract gradient background for a job poster titled "${title}" at "${companyName}". High contrast, cinematic lighting, corporate sleek aesthetic. No text.`;
-    let bgBuffer: Buffer | null = null;
-    const nvidiaKey = process.env.NVIDIA_FLUX_API_KEY || process.env.NVIDIA_API_KEY;
-    if (nvidiaKey) {
-      try {
-        const res = await fetch("https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${nvidiaKey}`, Accept: "application/json" },
-          body: JSON.stringify({ prompt, width: 1344, height: 768, steps: 30, cfg_scale: 3.5, seed: 0 }),
-        });
-        if (res.ok) {
-          const j: any = await res.json();
-          const b64 = j.image || j.artifacts?.[0]?.base64 || j.data?.[0]?.b64_json;
-          if (b64) bgBuffer = Buffer.from(b64, "base64");
-        } else {
-          console.error(`NVIDIA image ${res.status}: ${await res.text().catch(() => "")}`);
-        }
-      } catch (e) { console.error("NVIDIA image failed, using gradient fallback", e); }
-    }
+    let bgBuffer: Buffer | null = await generateImage(prompt, 1344, 768);
     // Lazy-load sharp (native module) only here so it never crashes module import on serverless.
     const sharp = (await import("sharp")).default;
     if (!bgBuffer) {
