@@ -69,6 +69,56 @@ export const notifyFollowers = createServerFn({ method: "POST" })
     return { ok: true, notified };
   });
 
+function cosine(a: number[], b: number[]): number {
+  let dot = 0, na = 0, nb = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return dot / ((Math.sqrt(na) * Math.sqrt(nb)) || 1);
+}
+
+// When a job is posted, notify applicants whose profile embedding matches it (excluding
+// company followers — they already get the follower alert).
+export const notifyMatchingApplicants = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((input: unknown) => z.object({ jobId: z.string(), threshold: z.number().optional(), limit: z.number().optional() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const db = await getAdminDb();
+    const jobSnap = await db.collection("jobs").doc(data.jobId).get();
+    if (!jobSnap.exists) throw new Error("Job not found");
+    const job = jobSnap.data() as any;
+    const jobVec = job.embedding as number[] | undefined;
+    if (!Array.isArray(jobVec)) return { ok: true, notified: 0 }; // no embedding yet
+
+    const compSnap = job.company_id ? await db.collection("companies").doc(job.company_id).get() : null;
+    if (!compSnap?.exists || (compSnap.data() as any).owner_id !== context.userId) throw new Error("Forbidden");
+    const company = compSnap.data() as any;
+
+    // Followers already get an alert — exclude them here to avoid double-notifying.
+    const followSnap = await db.collection("follows").where("company_id", "==", job.company_id).get();
+    const followers = new Set(followSnap.docs.map((d) => (d.data() as any).user_id));
+
+    const threshold = data.threshold ?? 0.72;
+    const cap = data.limit ?? 15;
+    const profSnap = await db.collection("profiles").get();
+    const scored = profSnap.docs
+      .map((d) => ({ uid: d.id, p: d.data() as any }))
+      .filter((x) => Array.isArray(x.p.embedding) && x.uid !== context.userId && !followers.has(x.uid))
+      .map((x) => ({ uid: x.uid, sim: cosine(jobVec, x.p.embedding) }))
+      .filter((x) => x.sim >= threshold)
+      .sort((a, b) => b.sim - a.sim)
+      .slice(0, cap);
+
+    await Promise.all(scored.map((x) =>
+      notify(db, x.uid, {
+        kind: "job_match",
+        title: `New role matches your profile: ${job.title}`,
+        body: `${company.name ?? "A company"} · ${Math.round(x.sim * 100)}% match`,
+        link: `/jobs/${data.jobId}`,
+      })
+    ));
+    return { ok: true, notified: scored.length };
+  });
+
 // Applicant submits an application (resume + optional project). Runs an AI resume↔role
 // audit, marks it "applied", and notifies the recruiter. No live interview here —
 // the interview is gated behind recruiter approval (inviteToInterview).
@@ -241,4 +291,82 @@ export const decideCandidate = createServerFn({ method: "POST" })
       if (email) await sendEmail({ to: email, subject: m.subject, html: m.html });
     } catch { /* email best-effort */ }
     return { ok: true, status: m.status };
+  });
+
+// Recruiter proposes meeting time slots; candidate picks one (Calendly-style).
+export const proposeMeeting = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((input: unknown) => z.object({
+    applicationId: z.string(),
+    slots: z.array(z.string()).min(1).max(6),
+    note: z.string().max(1000).optional(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const db = await getAdminDb();
+    const appRef = db.collection("applications").doc(data.applicationId);
+    const appSnap = await appRef.get();
+    if (!appSnap.exists) throw new Error("Application not found");
+    const app = appSnap.data() as any;
+    const { job, company } = await requireJobOwner(db, app, context.userId);
+
+    await appRef.update({
+      status: "meeting_proposed", pipeline_status: "interview",
+      meeting_slots: data.slots, meeting_note: data.note ?? null,
+      meeting_confirmed: null, proposed_at: new Date().toISOString(),
+    });
+    await notify(db, app.applicant_id, {
+      kind: "meeting_proposed",
+      title: `Pick a meeting time — ${job?.title ?? "your application"}`,
+      body: `${company?.name ?? "The company"} proposed ${data.slots.length} time slot${data.slots.length === 1 ? "" : "s"}.`,
+      link: `/me/applications/${data.applicationId}`,
+    });
+    try {
+      const email = (await (await getAdminAuth()).getUser(app.applicant_id)).email;
+      if (email) {
+        const list = data.slots.map((s) => `<li>${new Date(s).toLocaleString()}</li>`).join("");
+        await sendEmail({
+          to: email,
+          subject: `Choose an interview time — ${job?.title ?? "role"} at ${company?.name ?? "Crux"}`,
+          html: `<p><b>${company?.name ?? "The company"}</b> would like to meet about the <b>${job?.title ?? "role"}</b> role. Pick a time that works:</p><ul>${list}</ul>${data.note ? `<p>${data.note.replace(/\n/g, "<br>")}</p>` : ""}<p>Open your application on Crux to confirm.</p>`,
+        });
+      }
+    } catch { /* email best-effort */ }
+    return { ok: true };
+  });
+
+// Candidate confirms one of the proposed meeting slots.
+export const confirmMeetingSlot = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((input: unknown) => z.object({ applicationId: z.string(), slot: z.string() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const db = await getAdminDb();
+    const appRef = db.collection("applications").doc(data.applicationId);
+    const appSnap = await appRef.get();
+    if (!appSnap.exists) throw new Error("Application not found");
+    const app = appSnap.data() as any;
+    if (app.applicant_id !== context.userId) throw new Error("Forbidden");
+    const slots: string[] = Array.isArray(app.meeting_slots) ? app.meeting_slots : [];
+    if (!slots.includes(data.slot)) throw new Error("That time is no longer available");
+
+    await appRef.update({ status: "meeting_scheduled", meeting_confirmed: data.slot, confirmed_at: new Date().toISOString() });
+
+    const jobSnap = await db.collection("jobs").doc(app.job_id).get();
+    const job = jobSnap.exists ? (jobSnap.data() as any) : null;
+    const compSnap = job?.company_id ? await db.collection("companies").doc(job.company_id).get() : null;
+    const ownerId = compSnap?.exists ? (compSnap.data() as any).owner_id : null;
+    if (ownerId) {
+      const pSnap = await db.collection("profiles").doc(context.userId).get();
+      const cname = pSnap.exists ? (pSnap.data() as any).full_name || "The candidate" : "The candidate";
+      await notify(db, ownerId, {
+        kind: "meeting_confirmed",
+        title: `Meeting confirmed — ${job?.title ?? "role"}`,
+        body: `${cname} picked ${new Date(data.slot).toLocaleString()}.`,
+        link: `/recruiter/applications/${data.applicationId}`,
+      });
+      try {
+        const email = (await (await getAdminAuth()).getUser(ownerId)).email;
+        if (email) await sendEmail({ to: email, subject: `Meeting confirmed — ${job?.title ?? "role"}`, html: `<p>${cname} confirmed the meeting for <b>${new Date(data.slot).toLocaleString()}</b>.</p>` });
+      } catch { /* best-effort */ }
+    }
+    return { ok: true, slot: data.slot };
   });

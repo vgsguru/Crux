@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Loader2, ImagePlus, Video, Sparkles, X } from "lucide-react";
 import { generateJobOgImage, generateJobDescription, generateJobQuestions } from "@/lib/ai.server";
 import { embedJob } from "@/lib/match.server";
-import { notifyFollowers } from "@/lib/applications.server";
+import { notifyFollowers, notifyMatchingApplicants } from "@/lib/applications.server";
 import { screenJobPost } from "@/lib/moderation";
 
 export const Route = createFileRoute("/_authenticated/recruiter_/jobs/new")({
@@ -29,6 +29,7 @@ function NewJob() {
   const genQs = useServerFn(generateJobQuestions);
   const embed = useServerFn(embedJob);
   const notifyFollowersFn = useServerFn(notifyFollowers);
+  const notifyMatchesFn = useServerFn(notifyMatchingApplicants);
   const { data: company } = useQuery({
     queryKey: ["my-company-new-job", user?.id],
     enabled: !!user,
@@ -177,7 +178,10 @@ function NewJob() {
       }
       // Auto-generate a poster only if the recruiter didn't make one.
       if (!poster) genOg({ data: { jobId: data.id } }).catch(() => {});
-      embed({ data: { jobId: data.id } }).catch(() => {});
+      // Embed the job, then alert matching applicants (needs the embedding first).
+      embed({ data: { jobId: data.id } })
+        .then(() => { if (!held) return notifyMatchesFn({ data: { jobId: data.id } }); })
+        .catch(() => {});
       navigate({ to: "/recruiter/jobs/$jobId", params: { jobId: data.id } });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create");

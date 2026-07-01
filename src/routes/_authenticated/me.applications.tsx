@@ -71,7 +71,7 @@ function MyApplications() {
               draft: "Draft — not submitted", applied: "Applied · under review",
               interview_invited: "Invited to interview", interview_in_progress: "Interview in progress",
               scored: "Reviewed", interview_complete: "Reviewed",
-              offer_sent: "🎉 Offer received", meeting_scheduled: "Meeting scheduled", rejected: "Not selected",
+              offer_sent: "🎉 Offer received", meeting_proposed: "⏰ Pick a meeting time", meeting_scheduled: "Meeting scheduled", rejected: "Not selected",
             };
             const cta =
               a.status === "draft" && jobId ? { label: "Continue", to: "/apply/$jobId" as const, params: { jobId } }
@@ -79,7 +79,7 @@ function MyApplications() {
               : a.status === "interview_in_progress" && jobId ? { label: "Resume interview", to: "/apply/$jobId/interview" as const, params: { jobId } }
               : (a.status === "scored" || a.status === "interview_complete") ? { label: "View result", to: "/me/applications/$applicationId" as const, params: { applicationId: a.id } }
               : { label: "View", to: "/me/applications/$applicationId" as const, params: { applicationId: a.id } };
-            const invited = a.status === "interview_invited" || a.status === "offer_sent";
+            const invited = a.status === "interview_invited" || a.status === "offer_sent" || a.status === "meeting_proposed";
             return (
               <div key={a.id} className="glass flex items-center justify-between rounded-3xl px-6 py-5">
                 <div>

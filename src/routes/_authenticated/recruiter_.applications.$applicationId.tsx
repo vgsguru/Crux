@@ -8,7 +8,7 @@ import { SiteNav } from "@/components/site-nav";
 import { ArrowLeft, FileText, Play, Check, AlertTriangle, Download, RefreshCw, Quote, Clock, BarChart2 } from "lucide-react";
 import { setRetakeAllowed } from "@/lib/ai.server";
 import { computeResumeMatch, getApplicationPercentile } from "@/lib/scoring.server";
-import { inviteToInterview, decideCandidate } from "@/lib/applications.server";
+import { inviteToInterview, decideCandidate, proposeMeeting } from "@/lib/applications.server";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
@@ -26,6 +26,7 @@ type AppData = {
   ai_summary: string | null; ai_highlights: Highlights | null;
   resume_match: { matched_skills: string[]; gaps: string[]; extras: string[]; overall_pct: number; summary: string } | null;
   screening_answers?: { q: string; a: string }[];
+  meeting_slots?: string[] | null; meeting_confirmed?: string | null;
   resume_url: string | null; resume_text: string | null;
   intro_video_url: string | null; intro_transcript: string | null;
   retake_allowed: boolean; retake_count: number; audit_log: AuditEntry[];
@@ -55,12 +56,26 @@ function ApplicationReview() {
     onSuccess: (_d, v) => { toast.success(v.action === "reject" ? "Candidate notified" : v.action === "offer" ? "Offer sent" : "Meeting request sent"); refetch(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
-  function runDecision(action: "offer" | "schedule" | "reject") {
-    const labels = { offer: "Add an optional note for the offer email:", schedule: "Meeting details (date, time, video link):", reject: "Optional message to the candidate:" } as const;
+  function runDecision(action: "offer" | "reject") {
+    const labels = { offer: "Add an optional note for the offer email:", reject: "Optional message to the candidate:" } as const;
     const details = window.prompt(labels[action]) ?? "";
     if (action === "reject" && !window.confirm("Send rejection to this candidate?")) return;
     decide.mutate({ action, details });
   }
+  // Calendly-style: propose time slots the candidate picks from.
+  const proposeFn = useServerFn(proposeMeeting);
+  const [showSlots, setShowSlots] = useState(false);
+  const [slots, setSlots] = useState<string[]>(["", ""]);
+  const [slotNote, setSlotNote] = useState("");
+  const propose = useMutation({
+    mutationFn: async () => {
+      const chosen = slots.map((s) => s.trim()).filter(Boolean).map((s) => new Date(s).toISOString());
+      if (!chosen.length) throw new Error("Add at least one time slot");
+      return proposeFn({ data: { applicationId, slots: chosen, note: slotNote.trim() || undefined } });
+    },
+    onSuccess: () => { toast.success("Time slots sent — the candidate will pick one"); setShowSlots(false); refetch(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
   const runMatch = useMutation({
     mutationFn: async () => matchFn({ data: { applicationId } }),
     onSuccess: () => { toast.success("Resume match computed"); refetch(); },
@@ -233,10 +248,10 @@ function ApplicationReview() {
     <div className="bg-ambient min-h-screen">
       <SiteNav />
       <main className="mx-auto max-w-4xl px-4 py-10">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Link to="/recruiter" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</Link>
-          <div className="flex items-center gap-2">
-            {app.status === "interview_invited" || app.status === "interview_in_progress" || app.status === "scored" || app.status === "offer_sent" || app.status === "meeting_scheduled" || app.status === "rejected" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {app.status === "interview_invited" || app.status === "interview_in_progress" || app.status === "scored" || app.status === "offer_sent" || app.status === "meeting_proposed" || app.status === "meeting_scheduled" || app.status === "rejected" ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary"><Check className="h-4 w-4" /> Invited to interview</span>
             ) : (
               <>
@@ -316,8 +331,10 @@ function ApplicationReview() {
           <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-muted-foreground">Final decision</h3>
           {app.status === "offer_sent" ? (
             <p className="mt-2 text-sm font-medium text-emerald-600">✓ Offer sent to candidate.</p>
+          ) : app.status === "meeting_proposed" ? (
+            <p className="mt-2 text-sm font-medium text-primary">✓ Time slots sent — waiting for the candidate to pick one.</p>
           ) : app.status === "meeting_scheduled" ? (
-            <p className="mt-2 text-sm font-medium text-primary">✓ Meeting request sent.</p>
+            <p className="mt-2 text-sm font-medium text-primary">✓ Meeting confirmed{app.meeting_confirmed ? ` for ${new Date(app.meeting_confirmed).toLocaleString()}` : ""}.</p>
           ) : app.status === "rejected" ? (
             <p className="mt-2 text-sm font-medium text-muted-foreground">Candidate was not selected.</p>
           ) : (
@@ -325,9 +342,25 @@ function ApplicationReview() {
               <p className="mt-1 text-xs text-muted-foreground">Choose who to recruit. The candidate is emailed and notified.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button onClick={() => runDecision("offer")} disabled={decide.isPending} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"><Check className="h-4 w-4" /> Send offer</button>
-                <button onClick={() => runDecision("schedule")} disabled={decide.isPending} className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"><Clock className="h-4 w-4" /> Schedule meeting</button>
+                <button onClick={() => setShowSlots((v) => !v)} className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"><Clock className="h-4 w-4" /> Schedule meeting</button>
                 <button onClick={() => runDecision("reject")} disabled={decide.isPending} className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"><AlertTriangle className="h-4 w-4" /> Reject</button>
               </div>
+              {showSlots && (
+                <div className="mt-4 rounded-2xl border border-border bg-background/50 p-4">
+                  <p className="text-xs font-medium">Propose 1–4 time slots — the candidate picks one.</p>
+                  <div className="mt-2 space-y-2">
+                    {slots.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input type="datetime-local" value={s} onChange={(e) => setSlots((arr) => arr.map((x, j) => j === i ? e.target.value : x))} className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm" />
+                        {slots.length > 1 && <button onClick={() => setSlots((arr) => arr.filter((_, j) => j !== i))} className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary"><AlertTriangle className="h-3.5 w-3.5 rotate-45" /></button>}
+                      </div>
+                    ))}
+                    {slots.length < 4 && <button onClick={() => setSlots((arr) => [...arr, ""])} className="text-xs font-medium text-primary hover:underline">+ Add another slot</button>}
+                  </div>
+                  <input value={slotNote} onChange={(e) => setSlotNote(e.target.value)} placeholder="Optional note (e.g. video-call link)" className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" />
+                  <button onClick={() => propose.mutate()} disabled={propose.isPending} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">{propose.isPending ? "Sending…" : "Send time slots"}</button>
+                </div>
+              )}
             </>
           )}
         </div>

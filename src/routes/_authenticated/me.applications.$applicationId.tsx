@@ -5,8 +5,9 @@ import { db } from "@/integrations/firebase/client";
 import { doc, getDoc, addDoc, collection } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
-import { ArrowLeft, RefreshCw, Quote, ArrowRight, BarChart2, Video, ShieldCheck } from "lucide-react";
+import { ArrowLeft, RefreshCw, Quote, ArrowRight, BarChart2, Video, ShieldCheck, CalendarClock, Check } from "lucide-react";
 import { consumeRetake } from "@/lib/ai.server";
+import { confirmMeetingSlot } from "@/lib/applications.server";
 import { computeResumeMatch, getApplicationPercentile } from "@/lib/scoring.server";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -22,6 +23,7 @@ function CandidateApplicationDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const consumeFn = useServerFn(consumeRetake);
+  const confirmSlotFn = useServerFn(confirmMeetingSlot);
 
   async function requestReview() {
     if (!user) { toast.error("Sign in first"); return; }
@@ -71,9 +73,16 @@ function CandidateApplicationDetail() {
         ai_highlights: { strengths: string[]; concerns: string[]; recommendation: string } | null;
         resume_match: { matched_skills: string[]; gaps: string[]; extras: string[]; overall_pct: number; summary: string } | null;
         retake_allowed: boolean; retake_count: number;
+        meeting_slots?: string[] | null; meeting_confirmed?: string | null; meeting_note?: string | null;
         jobs: { id: string; title: string; interview_mode: "async" | "live" | null; companies: { name: string } | null } | null;
       } | null;
     },
+  });
+
+  const confirmSlot = useMutation({
+    mutationFn: async (slot: string) => confirmSlotFn({ data: { applicationId, slot } }),
+    onSuccess: () => { toast.success("Meeting confirmed!"); refetch(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
   const matchFn = useServerFn(computeResumeMatch);
@@ -126,6 +135,31 @@ function CandidateApplicationDetail() {
             )}
           </div>
         </div>
+
+        {/* Meeting scheduling */}
+        {app.status === "meeting_proposed" && Array.isArray(app.meeting_slots) && app.meeting_slots.length > 0 && (
+          <div className="glass-strong mt-4 rounded-3xl p-6">
+            <div className="flex items-center gap-2"><CalendarClock className="h-5 w-5 text-primary" /><h3 className="font-display text-lg font-semibold">Pick a meeting time</h3></div>
+            <p className="mt-1 text-sm text-muted-foreground">{app.jobs?.companies?.name ?? "The recruiter"} proposed these times{app.meeting_note ? ` — ${app.meeting_note}` : ""}. Choose one:</p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {app.meeting_slots.map((s) => (
+                <button key={s} onClick={() => confirmSlot.mutate(s)} disabled={confirmSlot.isPending} className="flex items-center justify-between rounded-2xl border border-border bg-background/50 px-4 py-3 text-sm font-medium hover:border-primary/40 hover:bg-secondary/50 disabled:opacity-50">
+                  {new Date(s).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {app.status === "meeting_scheduled" && app.meeting_confirmed && (
+          <div className="glass mt-4 flex items-center gap-3 rounded-3xl p-6">
+            <Check className="h-5 w-5 text-emerald-500" />
+            <div>
+              <p className="font-display text-sm font-semibold">Meeting confirmed</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{new Date(app.meeting_confirmed).toLocaleString([], { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}{app.meeting_note ? ` · ${app.meeting_note}` : ""}</p>
+            </div>
+          </div>
+        )}
 
         {app.jobs?.interview_mode === "async" && app.status !== "scored" && (
           <div className="glass mt-4 flex items-center justify-between rounded-3xl p-6">

@@ -120,12 +120,12 @@ export function SiteNav() {
       <div ref={menuRef} className="relative">
         <nav
           aria-label="Primary"
-          className="glass-panel flex w-fit items-center justify-between gap-2 rounded-full px-3 py-2"
+          className="glass-panel flex w-fit max-w-[calc(100vw-2rem)] items-center justify-between gap-1 rounded-full px-2 py-2 sm:gap-2 sm:px-3"
         >
-          {/* Logo + wordmark */}
-          <Link to="/" aria-label="Crux home" className="mr-1 flex items-center gap-2 pl-0.5">
-            <img src={onDark ? "/logo_white.png" : "/logo_black.png"} alt="Crux" className="h-9 w-auto" />
-            <span className={cn("font-display text-2xl font-bold tracking-tight", strong)}>Crux</span>
+          {/* Logo + wordmark (wordmark hidden on the smallest screens to save width) */}
+          <Link to="/" aria-label="Crux home" className="mr-0.5 flex items-center gap-2 pl-0.5 sm:mr-1">
+            <img src={onDark ? "/logo_white.png" : "/logo_black.png"} alt="Crux" className="h-8 w-auto sm:h-9" />
+            <span className={cn("hidden font-display text-2xl font-bold tracking-tight sm:inline", strong)}>Crux</span>
           </Link>
 
           {/* Primary nav */}
