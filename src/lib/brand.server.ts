@@ -3,7 +3,18 @@ import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware.ser
 import { z } from "zod";
 import { getAdminDb } from "@/integrations/firebase/admin";
 import { putImageToBlob } from "@/lib/blob.server";
-import { generateImage } from "@/lib/image-gen.server";
+import { generateImage, generateBrandBoard } from "@/lib/image-gen.server";
+
+// Decode a logo URL (data-URI or http) into a Buffer for image-edit reference.
+async function fetchImageBuffer(url?: string): Promise<Buffer | null> {
+  if (!url) return null;
+  try {
+    if (url.startsWith("data:")) { const b64 = url.split(",")[1]; return b64 ? Buffer.from(b64, "base64") : null; }
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    return Buffer.from(await r.arrayBuffer());
+  } catch { return null; }
+}
 
 async function requireCompanyOwner(db: FirebaseFirestore.Firestore, companyId: string, uid: string) {
   const snap = await db.collection("companies").doc(companyId).get();
@@ -28,19 +39,21 @@ export const generateBrandIdentity = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ companyId: z.string(), params: BRAND_PARAMS }).parse(i))
   .handler(async ({ data, context }) => {
     const db = await getAdminDb();
-    await requireCompanyOwner(db, data.companyId, context.userId);
+    const company = await requireCompanyOwner(db, data.companyId, context.userId);
     const p = data.params;
-    const prompt = `Create a complete brand identity concept board. The image must contain: the logo, a few logo variations, a colour palette (swatches), typography samples, and simple product/merch/packaging mockups. Clean studio flat-lay presentation, cohesive, high detail, professional.
+    const prompt = `Design ONE polished, agency-style BRAND IDENTITY GUIDELINE BOARD as a single high-resolution image on a dark background. Lay it out in clearly labelled sections: THE MARK (the logo + a one-line meaning), TYPOGRAPHY (an alphabet + numerals sample), COLOUR PALETTE (hex colour swatches), APPLICATIONS (realistic product mockups — the app UI on a phone, business cards, apparel like a hoodie and cap, a tote bag, a water bottle), PACKAGING (a branded box), and a MOOD strip of on-brand photos. Cohesive, premium, high detail, real product-photography style for mockups. No lorem-ipsum gibberish text.
 Brand Name: ${p.brandName}
-Description: ${p.description ?? ""}
+Brand Description: ${p.description ?? ""}
 Target Age Group: ${p.targetAge ?? ""}
 Brand Feel: ${p.feel ?? ""}
 Inspired from: ${p.inspiredFrom ?? ""}
 Colours: ${p.colours ?? ""}
 Graphic Styles: ${p.graphicStyles ?? ""}
-Avoid: ${p.avoid ?? ""}`;
+Avoid: ${p.avoid ?? ""}
+Use the provided logo exactly and consistently across every application in the board.`;
 
-    const buf = await generateImage(prompt, 1024, 1024);
+    const logo = await fetchImageBuffer(company.logo_url);
+    const buf = await generateBrandBoard(prompt, logo);
     if (!buf) throw new Error("Image generation is busy — please try again in a moment.");
 
     const url = await putImageToBlob(buf, `brand/${data.companyId}/identity-${Date.now()}.png`, "image/png");
