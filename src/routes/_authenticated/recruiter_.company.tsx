@@ -7,6 +7,7 @@ import { collection, query, where, getDocs, updateDoc, doc, addDoc, setDoc } fro
 import { useAuth } from "@/hooks/use-auth";
 import { SiteNav } from "@/components/site-nav";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { BrandIdentity } from "@/components/brand-identity";
 import { requestCompanyVerification } from "@/lib/match.server";
 import { resolveUsername } from "@/lib/username";
 import { toast } from "sonner";
@@ -209,6 +210,7 @@ function CompanySettings() {
         </form>
 
         {company && <VerificationCard company={company} />}
+        {company && <div className="mt-4"><BrandIdentity company={company} /></div>}
 
         <VerifiedRecruitsCard />
 

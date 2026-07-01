@@ -12,6 +12,7 @@ import { Plus, Trash2, Loader2, ImagePlus, Video, Sparkles, X } from "lucide-rea
 import { generateJobOgImage, generateJobDescription, generateJobQuestions } from "@/lib/ai.server";
 import { embedJob } from "@/lib/match.server";
 import { notifyFollowers, notifyMatchingApplicants } from "@/lib/applications.server";
+import { generateBrandPoster } from "@/lib/brand.server";
 import { screenJobPost } from "@/lib/moderation";
 
 export const Route = createFileRoute("/_authenticated/recruiter_/jobs/new")({
@@ -60,6 +61,20 @@ function NewJob() {
   const [poster, setPoster] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [genningPoster, setGenningPoster] = useState(false);
+  const genBrandFn = useServerFn(generateBrandPoster);
+  const [showBrand, setShowBrand] = useState(false);
+  const [genBrand, setGenBrand] = useState(false);
+  const [brandPoster, setBrandPoster] = useState({ targetAge: "", feel: "", inspiredFrom: "", graphicStyles: "", productInFocus: "" });
+  async function generateOnBrandPoster() {
+    if (!company) { toast.error("Create your company first"); return; }
+    setGenBrand(true);
+    try {
+      const res: any = await genBrandFn({ data: { companyId: company.id, ...brandPoster } });
+      if (res?.url) { setPoster(res.url); setShowBrand(false); toast.success("On-brand poster generated"); }
+      else toast.error("No image returned");
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); }
+    finally { setGenBrand(false); }
+  }
 
   async function uploadFile(file: File, folder: string) {
     const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -274,10 +289,36 @@ function NewJob() {
                 <Video className="h-4 w-4" /> {videoUrl ? "Replace video" : "Add video"}
                 <input type="file" accept="video/*" className="hidden" disabled={uploadingMedia} onChange={(e) => e.target.files?.[0] && addVideo(e.target.files[0])} />
               </label>
-              <button type="button" onClick={generatePoster} disabled={genningPoster} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
-                {genningPoster ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate AI poster
+              <button type="button" onClick={generatePoster} disabled={genningPoster} className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium hover:bg-secondary/70 disabled:opacity-60">
+                {genningPoster ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Quick AI poster
+              </button>
+              <button type="button" onClick={() => setShowBrand((v) => !v)} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+                <Sparkles className="h-4 w-4" /> On-brand poster
               </button>
             </div>
+
+            {showBrand && (
+              <div className="mt-4 rounded-2xl border border-border bg-background/50 p-5">
+                <p className="text-xs text-muted-foreground">Uses your <b>company brand theme</b> as the guide. Set it up in <span className="underline">Company settings → Brand theme</span> for best results. A small Crux mark is added to a corner.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {([
+                    ["targetAge", "Target age group", "e.g. 22–30"],
+                    ["feel", "Creative feel", "e.g. energetic, premium"],
+                    ["inspiredFrom", "Inspired from", "e.g. Apple keynote posters"],
+                    ["graphicStyles", "Graphic styles", "e.g. bold type, gradients"],
+                    ["productInFocus", "Product in focus", "e.g. the role / the team"],
+                  ] as const).map(([k, label, ph]) => (
+                    <label key={k}>
+                      <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+                      <input value={(brandPoster as any)[k]} onChange={(e) => setBrandPoster((p) => ({ ...p, [k]: e.target.value }))} placeholder={ph} className="w-full rounded-2xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-foreground/30" />
+                    </label>
+                  ))}
+                </div>
+                <button type="button" onClick={generateOnBrandPoster} disabled={genBrand} className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
+                  {genBrand ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} {genBrand ? "Generating… (~15s)" : "Generate on-brand poster (4:3)"}
+                </button>
+              </div>
+            )}
 
             {(poster || media.length > 0 || videoUrl) && (
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">

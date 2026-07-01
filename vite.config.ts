@@ -35,7 +35,11 @@ export default defineConfig({
     // On Vercel, build the Vercel (serverless) target; locally/elsewhere build a
     // standalone Node server. Avoids the Cloudflare auto-detection (firebase-admin
     // doesn't run on Workers).
-    nitro({ preset: process.env.VERCEL ? "vercel" : "node-server" }),
+    nitro({
+      preset: process.env.VERCEL ? "vercel" : "node-server",
+      // AI image generation can take ~15–30s; raise the Vercel function limit above the 10s default.
+      vercel: { functions: { maxDuration: 60 } },
+    }),
     viteReact(),
   ],
 });
