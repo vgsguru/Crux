@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteNav } from "@/components/site-nav";
 import { rankCandidates, toSubmissionCsv, toCompact, mergeDeepScores, type Requirement, type Ranked } from "@/lib/candidate-rank";
-import { deepRankCandidates } from "@/lib/candidate-rank.server";
+import { deepRankCandidates, understandRole } from "@/lib/candidate-rank.server";
 import { Upload, Search, Sparkles, Download, ArrowLeft, ChevronDown, Loader2, Users, MapPin, Star, Brain } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +23,8 @@ function Discover() {
   const [open, setOpen] = useState<string | null>(null);
   const [showN, setShowN] = useState(20);
   const deepRankFn = useServerFn(deepRankCandidates);
+  const understandFn = useServerFn(understandRole);
+  const [phase, setPhase] = useState("");
 
   const [role, setRole] = useState("");
   const [skills, setSkills] = useState("");
@@ -81,22 +83,37 @@ function Discover() {
     }, 30);
   }
 
-  // Hybrid pipeline: stage-1 recall (top 150) → LLM understands the role & re-ranks with reasons.
+  // Full hybrid pipeline:
+  //  0) LLM understands the role (semantic expansion → better recall)
+  //  1) structured + expanded recall over all candidates → top 150
+  //  2) LLM re-ranks the shortlist against the parsed criteria, with reasons
   async function deepRank() {
     if (!validate()) return;
     setDeepRanking(true);
     try {
       const req = buildReq();
-      const stage1 = rankCandidates(candidates, req, 150);
+      setPhase("Understanding the role…");
+      let u: any = null;
+      try { u = await understandFn({ data: { role: req.role, skills: req.skills, minYoe: req.minYoe, keywords: req.keywords } }); } catch { /* fall back */ }
+      const expandedReq: Requirement = u
+        ? {
+            ...req,
+            skills: Array.from(new Set([...req.skills, ...(u.must_have_skills || []), ...(u.nice_to_have_skills || []), ...(u.transferable_skills || [])].map((s: string) => String(s).trim().toLowerCase()).filter(Boolean))),
+            keywords: [req.keywords || "", ...(u.alt_titles || []), ...(u.domains || []), u.intent || ""].filter(Boolean).join(" "),
+          }
+        : req;
+      setPhase(`Scanning ${candidates.length.toLocaleString()} candidates…`);
+      const stage1 = rankCandidates(candidates, expandedReq, 150);
       const compact = stage1.map((r) => toCompact(r.candidate));
-      const res = await deepRankFn({ data: { role: req.role, skills: req.skills, minYoe: req.minYoe, keywords: req.keywords, candidates: compact } }) as { scores: Array<{ id: string; score: number; reason: string }> };
+      setPhase("AI re-ranking the shortlist…");
+      const res = await deepRankFn({ data: { role: req.role, skills: req.skills, minYoe: req.minYoe, keywords: req.keywords, criteria: u || undefined, candidates: compact } }) as { scores: Array<{ id: string; score: number; reason: string }> };
       setRanked(mergeDeepScores(stage1, res.scores ?? [], 100));
       setShowN(20);
       setAiRanked(true);
       toast.success("AI-ranked shortlist ready");
     } catch (e: any) {
       toast.error(e?.message ?? "Deep rank failed");
-    } finally { setDeepRanking(false); }
+    } finally { setDeepRanking(false); setPhase(""); }
   }
 
   function exportCsv() {
@@ -147,7 +164,7 @@ function Discover() {
                 {ranking ? <><Loader2 className="h-4 w-4 animate-spin" /> Ranking…</> : <><Sparkles className="h-4 w-4" /> Instant rank</>}
               </button>
               <button onClick={deepRank} disabled={ranking || deepRanking || !candidates.length} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
-                {deepRanking ? <><Loader2 className="h-4 w-4 animate-spin" /> AI understanding role…</> : <><Brain className="h-4 w-4" /> Deep AI rank</>}
+                {deepRanking ? <><Loader2 className="h-4 w-4 animate-spin" /> {phase || "Working…"}</> : <><Brain className="h-4 w-4" /> Deep AI rank</>}
               </button>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">Instant = in-browser signals. Deep AI = the model reads the role's real intent and re-ranks the shortlist with reasons (~20–40s).</p>

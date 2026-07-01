@@ -5,6 +5,42 @@ import { groqChat, extractJson, GROQ_CHAT_MODEL } from "@/lib/ai-providers.serve
 
 const CANDIDATE = z.object({}).passthrough();
 
+// Stage 0: the LLM reads the job description and extracts what the role TRULY needs —
+// including transferable skills, alternate titles, and domains — so recall becomes
+// semantic (catches "deep learning" when the JD says "PyTorch"), not just keyword.
+export const understandRole = createServerFn({ method: "POST" })
+  .middleware([requireFirebaseAuth])
+  .inputValidator((i: unknown) => z.object({
+    role: z.string(),
+    skills: z.array(z.string()).default([]),
+    minYoe: z.number().optional(),
+    keywords: z.string().optional(),
+  }).parse(i))
+  .handler(async ({ data }) => {
+    try {
+      const ai = await groqChat(GROQ_CHAT_MODEL, {
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: `You are an expert technical recruiter. Read the role and infer what it GENUINELY requires. Output STRICT JSON: {"must_have_skills":[".."],"nice_to_have_skills":[".."],"transferable_skills":["skills that indicate a strong adjacent fit"],"alt_titles":["equivalent/near job titles"],"domains":["relevant industries/domains"],"seniority":"junior|mid|senior|lead","intent":"1-2 sentence summary of what a great hire looks like"}. Be generous with transferable_skills and alt_titles to widen recall, but keep must_have tight.` },
+          { role: "user", content: `ROLE: ${data.role || "(infer)"}\nGiven skills: ${data.skills.join(", ") || "(none)"}\nMin experience: ${data.minYoe ?? 0}\nContext: ${data.keywords ?? "none"}` },
+        ],
+      });
+      const parsed = extractJson<any>(ai.choices[0]?.message?.content ?? "{}");
+      return {
+        must_have_skills: parsed.must_have_skills ?? data.skills,
+        nice_to_have_skills: parsed.nice_to_have_skills ?? [],
+        transferable_skills: parsed.transferable_skills ?? [],
+        alt_titles: parsed.alt_titles ?? [],
+        domains: parsed.domains ?? [],
+        seniority: parsed.seniority ?? "",
+        intent: parsed.intent ?? "",
+      };
+    } catch {
+      return { must_have_skills: data.skills, nice_to_have_skills: [], transferable_skills: [], alt_titles: [], domains: [], seniority: "", intent: "" };
+    }
+  });
+
 // Stage 3 of the hybrid pipeline: an LLM re-ranks the shortlist. It reads the role's
 // real intent (required + transferable skills, seniority, domain) and weighs behavioral
 // signals — not keyword overlap — then scores each candidate 0-100 with a specific reason.
@@ -15,13 +51,18 @@ export const deepRankCandidates = createServerFn({ method: "POST" })
     skills: z.array(z.string()).default([]),
     minYoe: z.number().optional(),
     keywords: z.string().optional(),
+    criteria: z.object({}).passthrough().optional(),
     candidates: z.array(CANDIDATE).max(200),
   }).parse(i))
   .handler(async ({ data }) => {
+    const c: any = data.criteria || {};
     const reqBlock = `ROLE: ${data.role || "(infer from context)"}
-Must-have skills: ${data.skills.join(", ") || "(infer from the role)"}
-Minimum experience: ${data.minYoe ?? 0} years
-Extra context: ${data.keywords ?? "none"}`;
+Must-have skills: ${(c.must_have_skills?.length ? c.must_have_skills : data.skills).join(", ") || "(infer from the role)"}
+Nice-to-have: ${(c.nice_to_have_skills || []).join(", ") || "—"}
+Transferable (strong adjacent fit): ${(c.transferable_skills || []).join(", ") || "—"}
+Target seniority: ${c.seniority || "—"}
+What a great hire looks like: ${c.intent || data.keywords || "—"}
+Minimum experience: ${data.minYoe ?? 0} years`;
 
     const BATCH = 20;
     const batches: any[][] = [];
