@@ -134,7 +134,8 @@ function AuthPage() {
       const name = fullName.trim() || cred.user.displayName || "";
       await ensureRole(cred.user.uid, role, name, cred.user.photoURL ?? null, mode === "signup" ? buildDetails() : {});
       toast.success("Welcome to Crux.");
-      navigate({ to: role === "recruiter" ? "/recruiter" : "/" });
+      // New accounts finish their profile first.
+      navigate({ to: mode === "signup" ? "/me/profile" : role === "recruiter" ? "/recruiter" : "/" });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {
@@ -150,8 +151,8 @@ function AuthPage() {
       if (mode === "signup") {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await ensureRole(cred.user.uid, role, fullName, null, buildDetails());
-        toast.success("Account created. Welcome to Crux.");
-        navigate({ to: role === "recruiter" ? "/recruiter" : "/" });
+        toast.success("Account created — let's finish your profile.");
+        navigate({ to: "/me/profile" });
       } else {
         let loginEmail = loginId.trim();
         if (!loginEmail.includes("@")) {

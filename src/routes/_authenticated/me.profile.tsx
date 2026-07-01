@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { db, storage } from "@/integrations/firebase/client";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/use-auth";
 import { claimUsername } from "@/lib/username";
+import { reverseGeocode } from "@/lib/geo.server";
 import { SiteNav } from "@/components/site-nav";
 import { ArrowLeft, Loader2, Upload, Plus, Trash2, GripVertical, FileText, MapPin, ImagePlus, AtSign } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/me/profile")({
 function EditProfilePage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const geocodeFn = useServerFn(reverseGeocode);
   const navigate = useNavigate();
 
   const [fullName, setFullName] = useState("");
@@ -186,16 +189,11 @@ function EditProfilePage() {
         const { latitude: lat, longitude: lng } = pos.coords;
         setGeo({ lat, lng });
         try {
-          // Free, keyless reverse geocode (best-effort; user can also type their city).
-          const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
-          if (res.ok) {
-            const d = await res.json();
-            const city = d.city || d.locality || d.principalSubdivision || "";
-            const country = d.countryName || "";
-            if (city) setLocation([city, country].filter(Boolean).join(", "));
-          }
-          toast.success("Location detected — remember to Save");
-        } catch { toast.success("Coordinates captured — add your city manually"); }
+          // Accurate reverse geocode via Google Maps (server-side to avoid CORS).
+          const res = await geocodeFn({ data: { lat, lng } }) as { location: string | null; error: string | null };
+          if (res.location) { setLocation(res.location); toast.success("Location detected — remember to Save"); }
+          else toast.message("Coordinates captured — add your city manually" + (res.error ? ` (${res.error})` : ""));
+        } catch { toast.message("Coordinates captured — add your city manually"); }
         finally { setDetecting(false); }
       },
       () => { setDetecting(false); toast.error("Couldn't get your location"); },

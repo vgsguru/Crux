@@ -134,24 +134,24 @@ function RecruiterProfile({ userId, isOwn }: { userId: string; isOwn: boolean })
       <SiteNav />
       <main className="mx-auto max-w-5xl px-4 py-10">
 
-        {/* Company Hero */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/15 via-primary/5 to-background border border-border/40 p-8 sm:p-12 mb-8">
-          {company?.banner_url && (
-            <>
-              <img src={company.banner_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-background/70 backdrop-blur-[1px]" />
-            </>
-          )}
-          <div className="absolute inset-0 pointer-events-none" style={{background: "radial-gradient(ellipse at 80% 50%, oklch(0.65 0.18 260 / 0.15), transparent 70%)"}} />
-          <div className="relative z-10 flex flex-col sm:flex-row gap-6 items-start">
-            {company?.logo_url ? (
-              <img src={company.logo_url} alt={company.name} className="h-24 w-24 rounded-2xl object-cover border border-border/50 shadow-xl bg-background" />
-            ) : (
-              <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-border/50 shadow-xl shrink-0">
-                <Building2 className="h-10 w-10 text-primary" />
-              </div>
+        {/* Company Hero — banner band on top, logo overlapping, content on a solid panel */}
+        <div className="overflow-hidden rounded-3xl border border-border/40 mb-8 glass-strong">
+          <div className="relative h-40 w-full bg-gradient-to-br from-primary/30 via-indigo-400/20 to-secondary sm:h-56">
+            {company?.banner_url && (
+              <img src={company.banner_url} alt="" className="h-full w-full object-cover" />
             )}
-            <div className="flex-1 min-w-0">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/80 via-background/10 to-transparent" />
+          </div>
+          <div className="relative px-6 pb-6 sm:px-10 sm:pb-8">
+            <div className="-mt-14 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-end">
+              {company?.logo_url ? (
+                <img src={company.logo_url} alt={company.name} className="h-28 w-28 shrink-0 rounded-2xl border-4 border-background object-cover shadow-xl bg-background" />
+              ) : (
+                <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl border-4 border-background bg-gradient-to-br from-primary/20 to-primary/5 shadow-xl">
+                  <Building2 className="h-11 w-11 text-primary" />
+                </div>
+              )}
+            <div className="flex-1 min-w-0 pb-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="font-display text-4xl font-bold tracking-tight">{company?.name ?? "Company"}</h1>
                 {company?.verification_status === "verified" && (
@@ -189,6 +189,7 @@ function RecruiterProfile({ userId, isOwn }: { userId: string; isOwn: boolean })
                 )}
               </div>
             </div>
+          </div>
           </div>
         </div>
 
